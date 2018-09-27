@@ -12,6 +12,9 @@ func TestGenServer(t *testing.T) {
 
 	t.Log("pid made: ", gsPid)
 
-	gsPid.MsgBox <- GerlMsg{0x0, "test"}
+	gs.Pid.MsgBox <- GerlMsg{0x0, "test"}
 	gsPid.MsgBox <- GerlMsg{0x1, "test"}
+
+	gs.Terminate()
+
 }
