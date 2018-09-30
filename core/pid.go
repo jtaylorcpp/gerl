@@ -7,13 +7,8 @@ var Pid ProcessID
 type ProcessID interface {
 	// Allocates new Pid
 	NewPid(ProcessBufferSize) ProcessID
-	// Sends a gerlMsg to a given ProcessID/GenericServer
-	SendToProcess() chan GerlMsg
-	SendToTransport() chan GerlMsg
-	// Gets a GerlMsg and whether the ProcessID is still open for a
-	// GenericServer to consume.
-	ProcessReceive() chan GerlMsg
-	TransportReceive() chan GerlMsg
+	Inbox() chan GerlMsg
+	Outbox() chan GerlMsg
 	// Address of ProcessID
 	GetAddr() ProcessAddr
 	// Stops GenericServer from writing messages to ProcessID

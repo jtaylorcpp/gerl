@@ -25,29 +25,11 @@ type Pid struct {
 	IsRunning bool
 }
 
-// Sends GerlMsg to the Pid output channel
-/*func (p Pid) SendMsg(msg core.GerlMsg) {
-	p.MsgOutbox <- msg
-}*/
-func (p Pid) SendToProcess() chan core.GerlMsg {
+func (p Pid) Inbox() chan core.GerlMsg {
 	return p.MsgInbox
 }
 
-func (p Pid) SendToTransport() chan core.GerlMsg {
-	return p.MsgOutbox
-}
-
-// Gets both GerlMsg and Closed/Open bool from input channel
-/*func (p Pid) GetMsg() (core.GerlMsg, bool) {
-	msg, ok := <-p.MsgInbox
-	return msg, ok
-}*/
-
-func (p Pid) ProcessReceive() chan core.GerlMsg {
-	return p.MsgInbox
-}
-
-func (p Pid) TransportReceive() chan core.GerlMsg {
+func (p Pid) Outbox() chan core.GerlMsg {
 	return p.MsgOutbox
 }
 
