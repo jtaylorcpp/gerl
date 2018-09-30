@@ -2,6 +2,7 @@ package genserver
 
 import (
 	"testing"
+	_ "time"
 
 	. "github.com/jtaylorcpp/gerl/core"
 )
@@ -22,9 +23,9 @@ func TestGenServer(t *testing.T) {
 	t.Log("pid made: ", gsPid)
 
 	t.Log("test call")
-	gs.Pid.SendMsg(GerlMsg{0x0, ProcessAddr([]byte("testServer")), "test"})
+	gs.Pid.SendToProcess() <- GerlMsg{0x0, ProcessAddr([]byte("testServer")), "test"}
 	t.Log("test cast")
-	gs.Pid.SendMsg(GerlMsg{0x1, ProcessAddr([]byte("testServer")), "test"})
+	gs.Pid.SendToProcess() <- GerlMsg{0x1, ProcessAddr([]byte("testServer")), "test"}
 	t.Log("test terminate")
 	gs.Terminate()
 

@@ -4,6 +4,7 @@ import (
 	"log"
 
 	. "github.com/jtaylorcpp/gerl/core"
+	_ "github.com/jtaylorcpp/gerl/core/basics/pid"
 )
 
 // GenericServer is an implementation of the Erlang OTP gen_server.
@@ -17,9 +18,9 @@ type GenericServer interface {
 	// Starts the GenericServer and returns the ProcessID associated with it
 	Start() ProcessID
 	// Processes a synchronous message passed to the GenericServer
-	CallHandler(GenericServerMessage, ProcessAddr, GenericServerState) GenericServerMessage
+	CallHandler(GenericServerMessage, ProcessAddr, GenericServerState) (GenericServerMessage, GenericServerState)
 	// Processes an asynchronous message passed to the GenericServer
-	CastHandler(GenericServerMessage, ProcessAddr, GenericServerState)
+	CastHandler(GenericServerMessage, ProcessAddr, GenericServerState) GenericServerState
 	// Terminate closes the ProcessID and clears out the GenericServer
 	Terminate()
 }
@@ -75,7 +76,7 @@ func (gs *GenServer) Init(state GenericServerState) {
 // the loop sends a termination signal and closes.
 // All messages output by the CallHandler are sent to the "outbox" and processed
 // by the pid. This "outbox" is also closed when the GenServer main loop is broken.
-func (gs *GenServer) Start() Pid {
+func (gs *GenServer) Start() ProcessID {
 	// generate a new pid
 	pid := NewPid(gs.BufferSize)
 	log.Println("GenServer available at pid: ", pid)
@@ -85,9 +86,10 @@ func (gs *GenServer) Start() Pid {
 	// main loop
 	go func() {
 		log.Printf("GenServer with pid<%v> started\n", gs.Pid)
+		var loopState GenericServerState = gs.State
 		for {
 			// reads GerlMsg from the inbox
-			nextMessage, open := gs.Pid.GetMsg()
+			nextMessage, open := <-gs.Pid.ProcessReceive()
 			if !open {
 				break
 			}
@@ -97,48 +99,47 @@ func (gs *GenServer) Start() Pid {
 			case Call:
 				log.Printf("GenServer with pid<%v> got call with payload<%v>\n",
 					gs.Pid, nextMessage.Msg)
-				msg := gs.CallHandler(nextMessage.Msg, nextMessage.FromAddr, gs.State)
+				msg, newState := gs.CallHandler(nextMessage.Msg, nextMessage.FromAddr, loopState)
 				// builds new GerlMsg to send to the outbox
 				outMsg := GerlMsg{
 					Type:     nextMessage.Type,
 					FromAddr: gs.Pid.GetAddr(),
 					Msg:      msg,
 				}
+				loopState = newState
 				log.Printf("GenServer with pid<%v> replied with msg<%v>\n",
 					gs.Pid, outMsg)
-				gs.Pid.SendMsg(outMsg)
+				gs.Pid.SendToTransport() <- outMsg
 			case Cast:
 				log.Printf("pid <%v> got cast with payload<%v>\n",
 					gs.Pid, nextMessage.Msg)
-				gs.CastHandler(nextMessage.Msg, nextMessage.FromAddr, gs.State)
+				loopState = gs.CastHandler(nextMessage.Msg, nextMessage.FromAddr, loopState)
 			}
+			log.Printf("GenServer with pid<%v> new state<%v>\n", gs.Pid, loopState)
 		}
 		log.Printf("GenServer with pid<%v> message box closed\n", gs.Pid)
 		gs.Pid.ClosedByGenServer()
 	}()
-
-	pid.IsRunning = true
 	return pid
 }
 
 // CallHandler from GenericServer and passes through all variables to
 // the GenServerCustomCall.
-func (gs *GenServer) CallHandler(gsm GenericServerMessage, pa ProcessAddr, gss GenericServerState) GenericServerMessage {
+func (gs *GenServer) CallHandler(gsm GenericServerMessage, pa ProcessAddr, gss GenericServerState) (GenericServerMessage, GenericServerState) {
 	log.Printf("GenServer with pid<%v> calling CustomCaller\n", gs.Pid)
 	newMsg, newState := gs.CustomCall(gsm, pa, gss)
 	log.Printf("GenServer with pid<%v> has new state<%v>\n", gs.Pid, newState)
-	gs.State = newState
 	log.Printf("GenServer with pid<%v> call returning msg<%v>\n", gs.Pid, newMsg)
-	return newMsg
+	return newMsg, newState
 }
 
 // CastHandler from GenericServer and passes through all variable to
 // the GenericServerCustomCast
-func (gs *GenServer) CastHandler(gsm GenericServerMessage, pa ProcessAddr, gss GenericServerState) {
+func (gs *GenServer) CastHandler(gsm GenericServerMessage, pa ProcessAddr, gss GenericServerState) GenericServerState {
 	log.Printf("GenServer with pid<%v> calling CustomCaster\n", gs.Pid)
 	newState := gs.CustomCast(gsm, pa, gss)
 	log.Printf("GenServer with pid<%v> has new state<%v>\n", gs.Pid, newState)
-	gs.State = newState
+	return newState
 }
 
 // Terminate Calls the Pid.Terminate function to close out both the
