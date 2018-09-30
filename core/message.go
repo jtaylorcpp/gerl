@@ -1,4 +1,4 @@
-package gerl
+package core
 
 // GerlMsgType is a Enum used to designate types of messages
 // as they are passed between GenericServers

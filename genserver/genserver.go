@@ -1,7 +1,9 @@
-package gerl
+package genserver
 
 import (
 	"log"
+
+	. "github.com/jtaylorcpp/gerl/core"
 )
 
 // GenericServer is an implementation of the Erlang OTP gen_server.

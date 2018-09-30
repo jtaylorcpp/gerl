@@ -1,4 +1,4 @@
-package gerl
+package core
 
 import (
 	"log"

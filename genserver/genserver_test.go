@@ -1,7 +1,9 @@
-package gerl
+package genserver
 
 import (
 	"testing"
+
+	. "github.com/jtaylorcpp/gerl/core"
 )
 
 func TestGenServer(t *testing.T) {
