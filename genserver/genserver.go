@@ -89,7 +89,7 @@ func (gs *GenServer) Start() ProcessID {
 		var loopState GenericServerState = gs.State
 		for {
 			// reads GerlMsg from the inbox
-			nextMessage, open := <-gs.Pid.Inbox()
+			nextMessage, open := gs.Pid.ReceiveFromInbox()
 			if !open {
 				break
 			}
@@ -109,7 +109,7 @@ func (gs *GenServer) Start() ProcessID {
 				loopState = newState
 				log.Printf("GenServer with pid<%v> replied with msg<%v>\n",
 					gs.Pid, outMsg)
-				gs.Pid.Outbox() <- outMsg
+				gs.Pid.SendToOutbox(outMsg)
 			case Cast:
 				log.Printf("pid <%v> got cast with payload<%v>\n",
 					gs.Pid, nextMessage.Msg)

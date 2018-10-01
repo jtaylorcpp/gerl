@@ -25,12 +25,22 @@ type Pid struct {
 	IsRunning bool
 }
 
-func (p Pid) Inbox() chan core.GerlMsg {
-	return p.MsgInbox
+func (p Pid) SendToInbox(msg core.GerlMsg) {
+	p.MsgInbox <- msg
 }
 
-func (p Pid) Outbox() chan core.GerlMsg {
-	return p.MsgOutbox
+func (p Pid) ReceiveFromInbox() (core.GerlMsg, bool) {
+	msg, open := <-p.MsgInbox
+	return msg, open
+}
+
+func (p Pid) SendToOutbox(msg core.GerlMsg) {
+	p.MsgOutbox <- msg
+}
+
+func (p Pid) ReceiveFromOutbox() (core.GerlMsg, bool) {
+	msg, open := <-p.MsgOutbox
+	return msg, open
 }
 
 // Gets the address of the Pid

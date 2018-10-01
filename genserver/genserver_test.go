@@ -23,9 +23,9 @@ func TestGenServer(t *testing.T) {
 	t.Log("pid made: ", gsPid)
 
 	t.Log("test call")
-	gs.Pid.Inbox() <- GerlMsg{0x0, ProcessAddr([]byte("testServer")), "test"}
+	gs.Pid.SendToInbox(GerlMsg{0x0, ProcessAddr([]byte("testServer")), "test"})
 	t.Log("test cast")
-	gs.Pid.Inbox() <- GerlMsg{0x1, ProcessAddr([]byte("testServer")), "test"}
+	gs.Pid.SendToInbox(GerlMsg{0x1, ProcessAddr([]byte("testServer")), "test"})
 	t.Log("test terminate")
 	gs.Terminate()
 
