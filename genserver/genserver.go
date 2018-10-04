@@ -4,7 +4,7 @@ import (
 	"log"
 
 	. "github.com/jtaylorcpp/gerl/core"
-	_ "github.com/jtaylorcpp/gerl/core/basics/pid"
+	_ "github.com/jtaylorcpp/gerl/core/includes/pid"
 )
 
 // GenericServer is an implementation of the Erlang OTP gen_server.
@@ -89,8 +89,8 @@ func (gs *GenServer) Start() ProcessID {
 		var loopState GenericServerState = gs.State
 		for {
 			// reads GerlMsg from the inbox
-			nextMessage, open := gs.Pid.ReceiveFromInbox()
-			if !open {
+			nextMessage, ok := gs.Pid.Read()
+			if !ok {
 				break
 			}
 			log.Printf("GenServer with pid<%v> got type<%v>\n",
@@ -109,7 +109,7 @@ func (gs *GenServer) Start() ProcessID {
 				loopState = newState
 				log.Printf("GenServer with pid<%v> replied with msg<%v>\n",
 					gs.Pid, outMsg)
-				gs.Pid.SendToOutbox(outMsg)
+				gs.Pid.Write(outMsg)
 			case Cast:
 				log.Printf("pid <%v> got cast with payload<%v>\n",
 					gs.Pid, nextMessage.Msg)
@@ -118,7 +118,6 @@ func (gs *GenServer) Start() ProcessID {
 			log.Printf("GenServer with pid<%v> new state<%v>\n", gs.Pid, loopState)
 		}
 		log.Printf("GenServer with pid<%v> message box closed\n", gs.Pid)
-		gs.Pid.ClosedByGenServer()
 	}()
 	return pid
 }
@@ -151,8 +150,24 @@ func (gs *GenServer) Terminate() {
 }
 
 type GenericServerClient interface {
-	Init()
-	Call()
-	Cast()
-	Terminate()
+	Call(ProcessID, GerlMsg) GerlMsg
+	Cast(ProcessID, GerlMsg)
+}
+
+type GenServerClient struct {
+	CallHandler GenServerClientCall
+	CastHandler GenServerClientCast
+}
+
+type GenServerClientCall func(ProcessID, GerlMsg) GerlMsg
+type GenServerClientCast func(ProcessID, GerlMsg)
+
+func (gsc GenServerClient) Call(pid ProcessID, msg GerlMsg) GerlMsg {
+	log.Printf("client calling pid<%v> with msg<%v>\n", pid, msg)
+	return gsc.CallHandler(pid, msg)
+}
+
+func (gsc GenServerClient) Cast(pid ProcessID, msg GerlMsg) {
+	log.Printf("client casting pid<%v> with msg<%v>\n", pid, msg)
+	gsc.CastHandler(pid, msg)
 }

@@ -7,14 +7,10 @@ var Pid ProcessID
 type ProcessID interface {
 	// Allocates new Pid
 	NewPid(ProcessBufferSize) ProcessID
-	SendToInbox(GerlMsg)
-	ReceiveFromInbox() (GerlMsg, bool)
-	SendToOutbox(GerlMsg)
-	ReceiveFromOutbox() (GerlMsg, bool)
+	Read() (GerlMsg, bool)
+	Write(GerlMsg)
 	// Address of ProcessID
 	GetAddr() ProcessAddr
-	// Stops GenericServer from writing messages to ProcessID
-	ClosedByGenServer()
 	// Closes out ProcessID and stops messages going to the GenericServer
 	Terminate()
 }
