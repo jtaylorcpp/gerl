@@ -1,4 +1,4 @@
-package basics
+package channel
 
 import (
 	"log"
@@ -8,7 +8,7 @@ import (
 
 func init() {
 	core.Pid = Pid{}
-	log.Println("Setting Pid to type BasicPid")
+	log.Println("Setting Pid to type ChannelPid")
 }
 
 // Pid is an implementation of the ProcessID interface
@@ -16,17 +16,17 @@ type Pid struct {
 	// Unique address of Pid
 	Addr core.ProcessAddr
 	// Channel GerlMsgs to/from GenServer
-	MsgChan chan core.GerlMsg
+	MsgChan chan core.GerlPassableMessage
 	// Keeps track of current GenServer status
 	IsRunning bool
 }
 
-func (p Pid) Read() (core.GerlMsg, bool) {
+func (p Pid) Read() (core.GerlPassableMessage, bool) {
 	msg, ok := <-p.MsgChan
 	return msg, ok
 }
 
-func (p Pid) Write(msg core.GerlMsg) {
+func (p Pid) Write(msg core.GerlPassableMessage) {
 	p.MsgChan <- msg
 }
 
@@ -47,7 +47,7 @@ func (p Pid) Terminate() {
 // Builds a new pid of type Pid
 func (Pid) NewPid(s core.ProcessBufferSize) core.ProcessID {
 	return Pid{
-		MsgChan:   make(chan core.GerlMsg, s),
+		MsgChan:   make(chan core.GerlPassableMessage, s),
 		IsRunning: true,
 	}
 }

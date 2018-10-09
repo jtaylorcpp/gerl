@@ -1,0 +1,31 @@
+syntax = "proto3";
+package grpc;
+
+//import "google/protobuf/struct.proto";
+
+service GerlMessager {
+	rpc Call(GerlMsg) returns (GerlMsg) {}
+	rpc Cast(GerlMsg) returns (Empty) {}
+}
+
+message Empty{}
+
+message GerlMsg {
+	enum Type {
+		CALL = 0;
+		CAST = 1;
+	}
+	
+	Type type = 1;
+	string processaddr = 2;
+	Message msg = 3;
+}
+
+message Message {
+	enum Type {
+		SIMPLE = 0;
+	}
+	
+	Type type = 1;
+	string description = 2;
+}

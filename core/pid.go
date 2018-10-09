@@ -7,8 +7,8 @@ var Pid ProcessID
 type ProcessID interface {
 	// Allocates new Pid
 	NewPid(ProcessBufferSize) ProcessID
-	Read() (GerlMsg, bool)
-	Write(GerlMsg)
+	Read() (GerlPassableMessage, bool)
+	Write(GerlPassableMessage)
 	// Address of ProcessID
 	GetAddr() ProcessAddr
 	// Closes out ProcessID and stops messages going to the GenericServer
