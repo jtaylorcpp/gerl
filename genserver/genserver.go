@@ -2,6 +2,7 @@ package genserver
 
 import (
 	"log"
+	"errors"
 
 	"github.com/jtaylorcpp/gerl/core"
 )
@@ -13,7 +14,7 @@ import (
 // processed sequentially by use of the CallHandler and CastHandler.
 type GenericServer interface {
 	// Starts the GenericServer and returns the ProcessID associated with it
-	Start()
+	Start() error
 	// Processes a synchronous message passed to the GenericServer
 	CallHandler(GenericServerMessage, ProcessAddr, GenericServerState) (GenericServerMessage, GenericServerState)
 	// Processes an asynchronous message passed to the GenericServer
@@ -53,7 +54,7 @@ type GenServer struct {
 	// This allows a user defined cast routine to be ran within the
 	// GenericServer interface.
 	CustomCast GenServerCustomCast
-	Error chan error
+	Errors chan error
 	// BufferSize (uint64) sets the initial Pid GerlMessage buffer size.
 	Terminated chan bool
 }
@@ -66,7 +67,7 @@ func New(state State, call GenServerCustomCall, cast GenServerCustomCast) *GenSe
 		State: state,
 		CustomCall: call,
 		CustomCast: cast,
-		Error: make(chan error),
+		Errors: make(chan error),
 		Terminated: make(chan bool)
 	}
 }
@@ -77,16 +78,29 @@ func New(state State, call GenServerCustomCall, cast GenServerCustomCast) *GenSe
 // the loop sends a termination signal and closes.
 // All messages output by the CallHandler are sent to the "outbox" and processed
 // by the pid. This "outbox" is also closed when the GenServer main loop is broken.
-func (gs *GenServer) Start() ProcessID {
+func (gs *GenServer) Start() error {
 	// generate a new pid
-	pid := NewPid(gs.BufferSize)
-	log.Println("GenServer available at pid: ", pid)
-	// assign pid to the genserver
-	gs.Pid = pid
+	gs.Pid = core.NewPid("","")
+	log.Println("GenServer available at pid: ", gs.Pid.GetAddr())
 
+	for {
+		select {
+			case err := <- gs.Pid.Errors:
+				log.Println("genserver pid error: ",err)
+				gs.Errors <- errors.New("pid error, close genserver")
+			case term := <- gs.Terminated:
+				log.Println("genserver terminated")
+				return errors.New("genserver terminated")
+			case msg, ok := <- gs.Pid.Read():
+				if !ok { return errors.New("genserver message inbox closed") }
+			default:
+			
+		}
+	}
+
+	/*
 	// main loop
 	ready := make(chan bool)
-	gs.terminated = make(chan bool)
 	go func() {
 		log.Printf("GenServer with pid<%v> started\n", gs.Pid)
 		var loopState GenericServerState = gs.State
@@ -122,6 +136,7 @@ func (gs *GenServer) Start() ProcessID {
 	}()
 	<-ready
 	return pid
+	*/
 }
 
 // CallHandler from GenericServer and passes through all variables to
