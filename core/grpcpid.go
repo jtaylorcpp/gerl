@@ -1,9 +1,9 @@
 package core
 
 import (
-	"net"
-
+	"errors"
 	"fmt"
+	"net"
 
 	"golang.org/x/net/context"
 	"google.golang.org/grpc"
@@ -21,27 +21,22 @@ func init() {
 
 type Pid struct {
 	Addr   string
-	Inbox  chan Message
-	Outbox chan Message
+	Inbox  chan GerlMsg
+	Outbox chan GerlMsg
 	Errors chan error
 	Server *grpc.Server
 }
 
 // GRPC function
 func (p *Pid) Call(ctx context.Context, in *GerlMsg) (*GerlMsg, error) {
-	p.Inbox <- *in.GetMsg()
+	p.Inbox <- *in
 	returnMsg := <-p.Outbox
-	returnGerl := &GerlMsg{
-		Type:        GerlMsg_CALL,
-		Processaddr: returnMsg.GetFromaddr(),
-		Msg:         &returnMsg,
-	}
-	return returnGerl, nil
+	return returnMsg, nil
 }
 
 // GRPC function
 func (p *Pid) Cast(ctx context.Context, in *GerlMsg) (*Empty, error) {
-	p.Inbox <- *in.GetMsg()
+	p.Inbox <- *in
 	return &Empty{}, nil
 }
 
@@ -91,12 +86,7 @@ func NewPid(address, port string) Pid {
 	return npid
 }
 
-func (p Pid) Read() (Message, bool) {
-	msg, open := <-p.Inbox
-	return msg, open
-}
-
-func (p Pid) Write(msg Message) {
+func (p Pid) Write(msg GerlMsg) {
 	p.Outbox <- msg
 }
 
@@ -107,4 +97,5 @@ func (p Pid) GetAddr() string {
 func (p Pid) Terminate() {
 	p.Server.Stop()
 	close(p.Inbox)
+	p.Errors <- errors.New("pid terminated")
 }

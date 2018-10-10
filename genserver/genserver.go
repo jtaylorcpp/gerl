@@ -26,14 +26,15 @@ type GenericServer interface {
 // GenericServerState is an empty interface which allows the GenericServer to
 // manage arbitrary objects inside the GenericServer state
 type State interface{}
+type PidAddr string
 
 // GenServerCustomCall acts like HTTP middleware and is wrapped inside the
 // GenericServer.CallHandler of the GenServer.
-type GenServerCustomCall func(GenericServerMessage, ProcessAddr, GenericServerState) (GenericServerMessage, GenericServerState)
+type GenServerCallHandler func(core.Message, PidAddr, State) (core.Message, State)
 
 // GenServerCustomCasr acts like HTTP middleware and is wrapped inside the
 // GenericServer.CastHandler of the GenServer.
-type GenServerCustomCast func(GenericServerMessage, ProcessAddr, GenericServerState) GenericServerState
+type GenServerCastHandler func(core.Message, PidAddr, GenericServerState) State
 
 // GenServer is an implementation of the GenericServer.
 // It serves both as a reference implemntation and
@@ -91,8 +92,16 @@ func (gs *GenServer) Start() error {
 			case term := <- gs.Terminated:
 				log.Println("genserver terminated")
 				return errors.New("genserver terminated")
-			case msg, ok := <- gs.Pid.Read():
+			case msg, ok := <- gs.Pid.Inbox:
 				if !ok { return errors.New("genserver message inbox closed") }
+				switch msg.GetType() {
+					case core.GerlMsg_CALL:
+						log.Println("genserver recieved call")
+					case core.GerlMsg_CAST:
+						log.Println("genserver recieved cast")
+					default:
+						log.Println("genserver recieved unknown type: ",msg.GetType())
+				}
 			default:
 			
 		}
