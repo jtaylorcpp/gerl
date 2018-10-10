@@ -31,7 +31,7 @@ type Pid struct {
 func (p *Pid) Call(ctx context.Context, in *GerlMsg) (*GerlMsg, error) {
 	p.Inbox <- *in
 	returnMsg := <-p.Outbox
-	return returnMsg, nil
+	return &returnMsg, nil
 }
 
 // GRPC function
@@ -67,8 +67,8 @@ func NewPid(address, port string) Pid {
 	// create pid to return
 	npid := Pid{
 		Addr:   lis.Addr().(*net.TCPAddr).String(),
-		Inbox:  make(chan Message, 8),
-		Outbox: make(chan Message, 8),
+		Inbox:  make(chan GerlMsg, 8),
+		Outbox: make(chan GerlMsg, 8),
 		Errors: Errors,
 		Server: grpcServer,
 	}
