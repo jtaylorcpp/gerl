@@ -3,8 +3,7 @@ package genserver
 import (
 	"log"
 
-	. "github.com/jtaylorcpp/gerl/core"
-	_ "github.com/jtaylorcpp/gerl/core/includes/channel"
+	"github.com/jtaylorcpp/gerl/core"
 )
 
 // GenericServer is an implementation of the Erlang OTP gen_server.
@@ -13,10 +12,8 @@ import (
 // Messages are passed through the pid to the GenericServer and are
 // processed sequentially by use of the CallHandler and CastHandler.
 type GenericServer interface {
-	// Builds the GenericServer with intial state
-	Init(GenericServerState)
 	// Starts the GenericServer and returns the ProcessID associated with it
-	Start() ProcessID
+	Start()
 	// Processes a synchronous message passed to the GenericServer
 	CallHandler(GenericServerMessage, ProcessAddr, GenericServerState) (GenericServerMessage, GenericServerState)
 	// Processes an asynchronous message passed to the GenericServer
@@ -25,37 +22,9 @@ type GenericServer interface {
 	Terminate()
 }
 
-// GenericServerMessage is an emtpy interface which allows arbitrary objects to
-// be passed through the pid to the GenericServer.
-type GenericServerMessage interface{}
-
 // GenericServerState is an empty interface which allows the GenericServer to
 // manage arbitrary objects inside the GenericServer state
-type GenericServerState interface{}
-
-// GenServer is an implementation of the GenericServer.
-// It serves both as a reference implemntation and
-// easy way to build and use the GenericServer pattern.
-type GenServer struct {
-	// Pid (type) is a struct defined in pid.go which
-	// fullfills the ProcessID interface and allows outside
-	// code to interact with the GenServer.
-	Pid ProcessID
-	// State uses the empty interface GenericServerState to handle arbitrary
-	// state information.
-	State GenericServerState
-	// CustomCall is a func ran inside of this implementations CallHandler.
-	// This allows a user defined call routine to be ran within the
-	// GenericServer interface.
-	CustomCall GenServerCustomCall
-	// CustomCast is a func ran inside of this implementations CastHandler.
-	// This allows a user defined cast routine to be ran within the
-	// GenericServer interface.
-	CustomCast GenServerCustomCast
-	// BufferSize (uint64) sets the initial Pid GerlMessage buffer size.
-	BufferSize ProcessBufferSize
-	terminated chan bool
-}
+type State interface{}
 
 // GenServerCustomCall acts like HTTP middleware and is wrapped inside the
 // GenericServer.CallHandler of the GenServer.
@@ -65,10 +34,41 @@ type GenServerCustomCall func(GenericServerMessage, ProcessAddr, GenericServerSt
 // GenericServer.CastHandler of the GenServer.
 type GenServerCustomCast func(GenericServerMessage, ProcessAddr, GenericServerState) GenericServerState
 
+// GenServer is an implementation of the GenericServer.
+// It serves both as a reference implemntation and
+// easy way to build and use the GenericServer pattern.
+type GenServer struct {
+	// Pid (type) is a struct defined in pid.go which
+	// fullfills the ProcessID interface and allows outside
+	// code to interact with the GenServer.
+	Pid core.Pid
+	// State uses the empty interface GenericServerState to handle arbitrary
+	// state information.
+	State State
+	// CustomCall is a func ran inside of this implementations CallHandler.
+	// This allows a user defined call routine to be ran within the
+	// GenericServer interface.
+	CustomCall GenServerCustomCall
+	// CustomCast is a func ran inside of this implementations CastHandler.
+	// This allows a user defined cast routine to be ran within the
+	// GenericServer interface.
+	CustomCast GenServerCustomCast
+	Error chan error
+	// BufferSize (uint64) sets the initial Pid GerlMessage buffer size.
+	Terminated chan bool
+}
+
 // Initializes the GenServer with the intial state
-func (gs *GenServer) Init(state GenericServerState) {
+func New(state State, call GenServerCustomCall, cast GenServerCustomCast) *GenServer {
 	log.Println("Initializing GenServer with state: ", state)
-	gs.State = state
+	return &GenServer {
+		Pid: nil,
+		State: state,
+		CustomCall: call,
+		CustomCast: cast,
+		Error: make(chan error),
+		Terminated: make(chan bool)
+	}
 }
 
 // Starts the GenServer main loop in which messages are read from the
