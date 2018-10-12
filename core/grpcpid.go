@@ -90,10 +90,6 @@ func NewPid(address, port string) *Pid {
 	return npid
 }
 
-func (p Pid) Write(msg GerlMsg) {
-	p.Outbox <- msg
-}
-
 func (p Pid) GetAddr() string {
 	return p.Addr
 }
@@ -133,6 +129,22 @@ func PidCall(toaddr string, fromaddr string, msg Message) Message {
 		Msg:         &msg,
 	}
 	returnGerlMsg, err := client.Call(context.Background(), gerlMsg)
-	log.Printf("error<%v> calling pid<%v> with msg<%v>\n", err, toaddr, msg)
+	if err != nil {
+		log.Printf("error<%v> calling pid<%v> with msg<%v>\n", err, toaddr, msg)
+	}
 	return *returnGerlMsg.GetMsg()
+}
+
+func PidCast(toaddr string, fromaddr string, msg Message) {
+	conn, client := newClient(toaddr)
+	defer conn.Close()
+	gerlMsg := &GerlMsg{
+		Type:        GerlMsg_CAST,
+		Processaddr: fromaddr,
+		Msg:         &msg,
+	}
+	_, err := client.Cast(context.Background(), gerlMsg)
+	if err != nil {
+		log.Printf("error<%v> cast pid<%v> with msg<%v>\n", err, toaddr, msg)
+	}
 }
