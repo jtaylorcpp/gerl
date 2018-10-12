@@ -1,5 +1,5 @@
 syntax = "proto3";
-package grpc;
+package core;
 
 //import "google/protobuf/struct.proto";
 
@@ -27,5 +27,6 @@ message Message {
 	}
 	
 	Type type = 1;
-	string description = 2;
+	string fromaddr = 2;
+	string description = 3;
 }
