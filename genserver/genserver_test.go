@@ -1,77 +1,34 @@
 package genserver
 
 import (
-	"reflect"
+	"log"
 	"testing"
 	"time"
 
-	gerl "github.com/jtaylorcpp/gerl/core"
-	channelpid "github.com/jtaylorcpp/gerl/core/includes/channel"
+	"github.com/jtaylorcpp/gerl/core"
 )
 
 func TestGenServer(t *testing.T) {
-	t.Log("Starting GenServer test...")
+	genserver := NewGenServer("test state", CallTest, CastTest)
+	go func() {
+		t.Log("genserver start error ", genserver.Start())
+	}()
 
-	gs := &GenServer{
-		CustomCall: testCustomCall,
-		CustomCast: testCustomCast,
-		BufferSize: 2,
+	for !genserver.Pid.Running {
+		time.Sleep(25 * time.Microsecond)
+		t.Log("waiting for genserver to start")
 	}
 
-	gs.Init("test state")
-
-	gsPid := gs.Start()
-
-	t.Log("pid made: ", gsPid)
-
-	//time.Sleep(time.Second)
-
-	gsClient := GenServerClient{
-		CallHandler: testCustomCallClient,
-		CastHandler: testCustomeCastClient,
-	}
-
-	t.Log("client made: ", gsClient)
-
-	t.Log("test call")
-	//gs.Pid.SendToInbox(GerlMsg{0x0, ProcessAddr([]byte("testServer")), "test"})
-	msg1 := gerl.GerlMsg.New(gerl.Call, gerl.ProcessAddr([]byte("testServer")), "test")
-	returnMsg1 := gsClient.Call(gsPid, msg1)
-
-	if !reflect.DeepEqual(msg1, returnMsg1) {
-		t.Errorf("msg<%v> not same as msg<%v> recieved\n", msg1, returnMsg1)
-	}
-
-	t.Log("test cast")
-	//gs.Pid.SendToInbox(GerlMsg{0x1, ProcessAddr([]byte("testServer")), "test"})
-	msg2 := gerl.GerlMsg.New(gerl.Cast, gerl.ProcessAddr([]byte("testServer")), "test")
-	gsClient.Cast(gs.Pid, msg2)
-
-	// terminate stops processes before msgs can be processed
-	time.Sleep(5 * time.Second)
-
-	t.Log("test terminate")
-	gs.Terminate()
+	genserver.Terminate()
 
 }
 
-//type GenServerCustomCall func(GenericServerMessage, ProcessAddr, GenericServerState) (GenericServerMessage, GenericServerState)
-func testCustomCall(gsm GenericServerMessage, pa gerl.ProcessAddr, gss GenericServerState) (GenericServerMessage, GenericServerState) {
-	return gsm, gss
+func CallTest(msg core.Message, pa PidAddr, s State) (core.Message, State) {
+	log.Println("call test func called")
+	return msg, s
 }
 
-func testCustomCast(gsm GenericServerMessage, pa gerl.ProcessAddr, gss GenericServerState) GenericServerState {
-	return gss
-}
-
-func testCustomCallClient(pid gerl.ProcessID, msg gerl.GerlPassableMessage) gerl.GerlPassableMessage {
-	nPid := pid.(channelpid.Pid)
-	nPid.MsgChan <- msg
-	returnMsg := <-nPid.MsgChan
-	return returnMsg
-}
-
-func testCustomeCastClient(pid gerl.ProcessID, msg gerl.GerlPassableMessage) {
-	nPid := pid.(channelpid.Pid)
-	nPid.MsgChan <- msg
+func CastTest(msg core.Message, pa PidAddr, s State) State {
+	log.Println("cast test func called")
+	return s
 }
