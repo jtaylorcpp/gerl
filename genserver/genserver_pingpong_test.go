@@ -17,7 +17,7 @@ func defaultCast(_ PidAddr, _ core.Message, s State) State {
 func pingCall(myAddr PidAddr, msg core.Message, s State) (core.Message, State) {
 	log.Println("ping description: ", msg.GetDescription())
 	switch msg.GetDescription() {
-	case "start":
+	case "serve":
 		//run ping
 		log.Println("ping sending to pong")
 		log.Printf("myaddr<%v> pongaddr<%v> msg<%v>\n", myAddr, PongAddr, core.Message{Type: core.Message_SIMPLE, Fromaddr: string(myAddr), Description: "ping"})
@@ -75,13 +75,21 @@ func TestGenServers(t *testing.T) {
 
 	t.Log("pong test: ", rmsg1)
 
+	if rmsg1.GetDescription() != "ping pong" {
+		t.Fatal("pong test failed")
+	}
+
 	rmsg2 := Call(PidAddr(gs1.Pid.GetAddr()), PidAddr("localhost"), core.Message{
 		Type:        core.Message_SIMPLE,
 		Fromaddr:    "localhost",
-		Description: "start",
+		Description: "serve",
 	})
 
 	t.Log("ping test: ", rmsg2)
+
+	if rmsg2.GetDescription() != "ping pong" {
+		t.Fatal("ping serve test failed")
+	}
 
 	gs1.Terminate()
 	gs2.Terminate()
