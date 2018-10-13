@@ -38,12 +38,12 @@ func TestGenServer(t *testing.T) {
 
 }
 
-func CallTest(msg core.Message, s State) (core.Message, State) {
+func CallTest(_ PidAddr, msg core.Message, s State) (core.Message, State) {
 	log.Println("call test func called")
 	return msg, State(s.(string) + " call")
 }
 
-func CastTest(msg core.Message, s State) State {
+func CastTest(_ PidAddr, msg core.Message, s State) State {
 	log.Println("cast test func called")
 	return State(s.(string) + " cast")
 }

@@ -28,11 +28,11 @@ type GenericServer interface {
 
 // GenServerCustomCall acts like HTTP middleware and is wrapped inside the
 // GenericServer.CallHandler of the GenServer.
-type GenServerCallHandler func(core.Message, State) (core.Message, State)
+type GenServerCallHandler func(PidAddr, core.Message, State) (core.Message, State)
 
 // GenServerCustomCasr acts like HTTP middleware and is wrapped inside the
 // GenericServer.CastHandler of the GenServer.
-type GenServerCastHandler func(core.Message, State) State
+type GenServerCastHandler func(PidAddr, core.Message, State) State
 
 // GenServer is an implementation of the GenericServer.
 // It serves both as a reference implemntation and
@@ -127,7 +127,7 @@ func (gs *GenServer) Start() error {
 // the GenServerCustomCall.
 func (gs *GenServer) CallHandler(msg core.Message, s State) (core.Message, State) {
 	log.Printf("GenServer with pid<%v> calling CustomCaller\n", gs.Pid)
-	newMsg, newState := gs.CustomCall(msg, s)
+	newMsg, newState := gs.CustomCall(PidAddr(gs.Pid.GetAddr()), msg, s)
 	log.Printf("GenServer with pid<%v> has new state<%v>\n", gs.Pid, newState)
 	log.Printf("GenServer with pid<%v> call returning msg<%v>\n", gs.Pid, newMsg)
 	return newMsg, newState
@@ -137,7 +137,7 @@ func (gs *GenServer) CallHandler(msg core.Message, s State) (core.Message, State
 // the GenericServerCustomCast
 func (gs *GenServer) CastHandler(msg core.Message, s State) State {
 	log.Printf("GenServer with pid<%v> calling CustomCaster\n", gs.Pid)
-	newState := gs.CustomCast(msg, s)
+	newState := gs.CustomCast(PidAddr(gs.Pid.GetAddr()), msg, s)
 	log.Printf("GenServer with pid<%v> has new state<%v>\n", gs.Pid, newState)
 	return newState
 }
