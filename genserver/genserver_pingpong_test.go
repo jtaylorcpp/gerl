@@ -10,20 +10,19 @@ import (
 
 var PongAddr PidAddr
 
-func defaultCast(_ PidAddr, _ core.Message, s State) State {
+func defaultCast(_ core.Pid, _ core.Message, _ FromAddr, s State) State {
 	return s
 }
 
-func pingCall(myAddr PidAddr, msg core.Message, s State) (core.Message, State) {
+func pingCall(pid core.Pid, msg core.Message, fromaddr FromAddr, s State) (core.Message, State) {
 	log.Println("ping description: ", msg.GetDescription())
 	switch msg.GetDescription() {
 	case "serve":
 		//run ping
 		log.Println("ping sending to pong")
-		log.Printf("myaddr<%v> pongaddr<%v> msg<%v>\n", myAddr, PongAddr, core.Message{Type: core.Message_SIMPLE, Fromaddr: string(myAddr), Description: "ping"})
-		pong := Call(PongAddr, myAddr, core.Message{
+		log.Printf("fromaddr<%v> pongaddr<%v> msg<%v>\n", fromaddr, PongAddr, core.Message{Type: core.Message_SIMPLE, Description: "ping"})
+		pong := Call(PongAddr, FromAddr(pid.GetAddr()), core.Message{
 			Type:        core.Message_SIMPLE,
-			Fromaddr:    string(myAddr),
 			Description: "ping",
 		})
 		log.Println("ping go msg: ", pong)
@@ -34,13 +33,13 @@ func pingCall(myAddr PidAddr, msg core.Message, s State) (core.Message, State) {
 	}
 }
 
-func pongCall(myAddr PidAddr, msg core.Message, s State) (core.Message, State) {
+func pongCall(_ core.Pid, msg core.Message, fromaddr FromAddr, s State) (core.Message, State) {
 	log.Println("pong description: ", msg.GetDescription())
 	switch msg.GetDescription() {
 	case "ping":
 		log.Println("pong got ping")
 		desc := msg.GetDescription() + " pong"
-		return core.Message{Type: core.Message_SIMPLE, Fromaddr: string(myAddr), Description: desc}, s
+		return core.Message{Type: core.Message_SIMPLE, Description: desc}, s
 	default:
 		log.Println("pong unknown message: ", msg)
 		return core.Message{}, s
@@ -67,9 +66,8 @@ func TestGenServers(t *testing.T) {
 	log.Println("pong server addr: ", gs2.Pid.GetAddr())
 	log.Println("var pong server addr: ", PongAddr)
 
-	rmsg1 := Call(PidAddr(gs2.Pid.GetAddr()), PidAddr("localhost"), core.Message{
+	rmsg1 := Call(PidAddr(gs2.Pid.GetAddr()), FromAddr("localhost"), core.Message{
 		Type:        core.Message_SIMPLE,
-		Fromaddr:    "localhost",
 		Description: "ping",
 	})
 
@@ -79,9 +77,8 @@ func TestGenServers(t *testing.T) {
 		t.Fatal("pong test failed")
 	}
 
-	rmsg2 := Call(PidAddr(gs1.Pid.GetAddr()), PidAddr("localhost"), core.Message{
+	rmsg2 := Call(PidAddr(gs1.Pid.GetAddr()), FromAddr("localhost"), core.Message{
 		Type:        core.Message_SIMPLE,
-		Fromaddr:    "localhost",
 		Description: "serve",
 	})
 
