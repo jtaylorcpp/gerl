@@ -21,11 +21,10 @@ func TestGenServer(t *testing.T) {
 
 	msg1 := core.Message{
 		Type:        core.Message_SIMPLE,
-		Fromaddr:    "localhost",
 		Description: "test call",
 	}
 
-	returnMsg1 := Call(PidAddr(genserver.Pid.Addr), PidAddr("localhost"), msg1)
+	returnMsg1 := Call(PidAddr(genserver.Pid.Addr), FromAddr("localhost"), msg1)
 	t.Log(returnMsg1)
 
 	Cast(PidAddr(genserver.Pid.GetAddr()), PidAddr("localhost"), msg1)
@@ -38,12 +37,12 @@ func TestGenServer(t *testing.T) {
 
 }
 
-func CallTest(_ PidAddr, msg core.Message, s State) (core.Message, State) {
+func CallTest(_ core.Pid, msg core.Message, _ FromAddr, s State) (core.Message, State) {
 	log.Println("call test func called")
 	return msg, State(s.(string) + " call")
 }
 
-func CastTest(_ PidAddr, msg core.Message, s State) State {
+func CastTest(_ core.Pid, msg core.Message, _ FromAddr, s State) State {
 	log.Println("cast test func called")
 	return State(s.(string) + " cast")
 }

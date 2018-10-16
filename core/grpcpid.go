@@ -32,8 +32,10 @@ type Pid struct {
 // GRPC function
 func (p *Pid) Call(ctx context.Context, in *GerlMsg) (*GerlMsg, error) {
 	p.Inbox <- *in
-	returnMsg := <-p.Outbox
-	return &returnMsg, nil
+	outMsg := <-p.Outbox
+	returnMsg := &outMsg
+	returnMsg.Fromaddr = p.GetAddr()
+	return returnMsg, nil
 }
 
 // GRPC function
@@ -124,9 +126,9 @@ func PidCall(toaddr string, fromaddr string, msg Message) Message {
 	conn, client := newClient(toaddr)
 	defer conn.Close()
 	gerlMsg := &GerlMsg{
-		Type:        GerlMsg_CALL,
-		Processaddr: fromaddr,
-		Msg:         &msg,
+		Type:     GerlMsg_CALL,
+		Fromaddr: fromaddr,
+		Msg:      &msg,
 	}
 	returnGerlMsg, err := client.Call(context.Background(), gerlMsg)
 	if err != nil {
@@ -139,9 +141,23 @@ func PidCast(toaddr string, fromaddr string, msg Message) {
 	conn, client := newClient(toaddr)
 	defer conn.Close()
 	gerlMsg := &GerlMsg{
-		Type:        GerlMsg_CAST,
-		Processaddr: fromaddr,
-		Msg:         &msg,
+		Type:     GerlMsg_CAST,
+		Fromaddr: fromaddr,
+		Msg:      &msg,
+	}
+	_, err := client.Cast(context.Background(), gerlMsg)
+	if err != nil {
+		log.Printf("error<%v> cast pid<%v> with msg<%v>\n", err, toaddr, msg)
+	}
+}
+
+func PidSendProc(toaddr string, fromaddr string, msg Message) {
+	conn, client := newClient(toaddr)
+	defer conn.Close()
+	gerlMsg := &GerlMsg{
+		Type:     GerlMsg_PROC,
+		Fromaddr: fromaddr,
+		Msg:      &msg,
 	}
 	_, err := client.Cast(context.Background(), gerlMsg)
 	if err != nil {

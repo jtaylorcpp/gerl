@@ -14,10 +14,11 @@ message GerlMsg {
 	enum Type {
 		CALL = 0;
 		CAST = 1;
+		PROC = 2;
 	}
 	
 	Type type = 1;
-	string processaddr = 2;
+	string fromaddr = 2;
 	Message msg = 3;
 }
 
@@ -27,6 +28,5 @@ message Message {
 	}
 	
 	Type type = 1;
-	string fromaddr = 2;
-	string description = 3;
+	string description = 2;
 }
