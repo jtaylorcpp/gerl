@@ -150,3 +150,17 @@ func PidCast(toaddr string, fromaddr string, msg Message) {
 		log.Printf("error<%v> cast pid<%v> with msg<%v>\n", err, toaddr, msg)
 	}
 }
+
+func PidSendProc(toaddr string, fromaddr string, msg Message) {
+	conn, client := newClient(toaddr)
+	defer conn.Close()
+	gerlMsg := &GerlMsg{
+		Type:     GerlMsg_PROC,
+		Fromaddr: fromaddr,
+		Msg:      &msg,
+	}
+	_, err := client.Cast(context.Background(), gerlMsg)
+	if err != nil {
+		log.Printf("error<%v> cast pid<%v> with msg<%v>\n", err, toaddr, msg)
+	}
+}

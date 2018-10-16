@@ -88,7 +88,7 @@ func (gs *GenServer) Start() error {
 		select {
 		case err := <-gs.Pid.Errors:
 			log.Println("genserver pid error: ", err)
-			gs.Errors <- errors.New("pid error, close genserver")
+			return errors.New("pid error, close genserver")
 		case <-gs.Terminated:
 			log.Println("genserver terminated")
 			return errors.New("genserver terminated")
