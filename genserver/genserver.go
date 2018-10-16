@@ -60,6 +60,7 @@ type GenServer struct {
 }
 
 // Initializes the GenServer with the intial state
+// takes in both the Call handler and Cast handler to be used in the main loop
 func NewGenServer(state State, call GenServerCallHandler, cast GenServerCastHandler) *GenServer {
 	log.Println("Initializing GenServer with state: ", state)
 	return &GenServer{
@@ -160,10 +161,16 @@ func (gs *GenServer) Terminate() {
 	log.Printf("Genserver with pid<%v> terminated\n", gs.Pid)
 }
 
+// Call sends an arbitrary core.Message to the GenServer at address PidAddr
+// and includes the FromAddr
+// This is desigend to send Call messages specifically to GenServers
 func Call(to PidAddr, from FromAddr, msg core.Message) core.Message {
 	return core.PidCall(string(to), string(from), msg)
 }
 
+// Cast sends an arbitrary core.Message to the GenServer at address PidAddr
+// and includes the FromAddr
+// This is desigend to send Cast messages specifically to GenServers
 func Cast(to PidAddr, from PidAddr, msg core.Message) {
 	core.PidCast(string(to), string(from), msg)
 }

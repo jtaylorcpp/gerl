@@ -7,30 +7,27 @@ import (
 	"github.com/jtaylorcpp/gerl/core"
 )
 
-/*
-type Process interface {
-	// Starts the GenericServer and returns the ProcessID associated with it
-	Start() error
-	// Processes a synchronous message passed to the GenericServer
-	Handler(core.Message, FromAddr, State) (core.Message, State)
-	// Terminate closes the ProcessID and clears out the Process
-	Terminate()
-}
-*/
-
 type PidAddr string
 type FromAddr string
 type Inbox chan core.GerlMsg
 
+// Handler started as a go-routine to process incoming messages
 type ProcHandler func(PidAddr, Inbox) error
 
+// Process is the struct designed to be a single threaded, concurrent loop
+// to process core.GerlMsg
 type Process struct {
-	Pid        *core.Pid
-	Handler    ProcHandler
-	Errors     chan error
+	// Pid use to communicate with the Process
+	Pid *core.Pid
+	// Handler is the Inbox handler that is started as a go-routine
+	Handler ProcHandler
+	// Error channel that forces a termination when an error is sent
+	Errors chan error
+	// Terminate channel that forces the main loop to terminate with termination error
 	Terminated chan bool
 }
 
+// Builds a new Process that has yet to be started
 func New(handler ProcHandler) *Process {
 	return &Process{
 		Pid:        &core.Pid{},
@@ -40,6 +37,9 @@ func New(handler ProcHandler) *Process {
 	}
 }
 
+// Starts a process which is blocking until an error is reported.
+// The main thread processes all incoming Ccore.GerlMsg, and errors from both the
+// Process and Pid. All errors recieved immediately return and error.
 func (p *Process) Start() error {
 
 	p.Pid = core.NewPid("", "")
@@ -85,6 +85,8 @@ func (p *Process) Start() error {
 	return errors.New("process ended in error")
 }
 
+// Terminates all of the Process side channels. Terminates the Pid and clears
+// all resulting errors.
 func (p *Process) Terminate() {
 	log.Printf("process with pid<%v> terminating\n", p.Pid.GetAddr())
 	p.Terminated <- true
@@ -100,6 +102,7 @@ func (p *Process) Terminate() {
 	log.Printf("process with pid<%v> temrinated\n", p.Pid.GetAddr())
 }
 
+// Send sends an arbitrary core.Message to a Process at PidAddr
 func Send(to PidAddr, from FromAddr, msg core.Message) {
 	core.PidSendProc(string(to), string(from), msg)
 }
