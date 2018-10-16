@@ -11,25 +11,35 @@ import (
 	"google.golang.org/grpc/reflection"
 )
 
-// ip address var to set for pid to use
+// global var which allows pids to know what ip address to bind to
 var IPAddress string
 
+// initializes the pid environment
+//  - IPAddress to bind all pids to
 func init() {
 	if IPAddress == "" {
 		IPAddress = "127.0.0.1"
 	}
 }
 
+// ProcessID (Pid) is the struct used to keep track of the main
+//  communication method to a running process
 type Pid struct {
-	Addr    string
-	Inbox   chan GerlMsg
-	Outbox  chan GerlMsg
-	Errors  chan error
-	Server  *grpc.Server
+	// Address of the currently running Pid
+	Addr string
+	// Inbox for messages passed to a process
+	Inbox chan GerlMsg
+	// Outbox for messages passed from a process
+	Outbox chan GerlMsg
+	// Error chan to be monitored by the process using the Pid
+	Errors chan error
+	// GRPC server
+	Server *grpc.Server
+	// Running check
 	Running bool
 }
 
-// GRPC function
+// GRPC function for interface GerlMessager
 func (p *Pid) Call(ctx context.Context, in *GerlMsg) (*GerlMsg, error) {
 	p.Inbox <- *in
 	outMsg := <-p.Outbox
@@ -38,7 +48,7 @@ func (p *Pid) Call(ctx context.Context, in *GerlMsg) (*GerlMsg, error) {
 	return returnMsg, nil
 }
 
-// GRPC function
+// GRPC function for interface GerlMessage
 func (p *Pid) Cast(ctx context.Context, in *GerlMsg) (*Empty, error) {
 	p.Inbox <- *in
 	return &Empty{}, nil
@@ -54,12 +64,15 @@ func NewPid(address, port string) *Pid {
 	if address != "" {
 		ipaddress = address
 	}
+	// if port is unset use 0
 	ipport := "0"
 	if port != "" {
 		ipport = port
 	}
 
 	// generate tcp listener
+	// no ip address will use 0.0.0.0
+	// no port number(string) will result in one being assigned
 	lis, err := net.Listen("tcp", fmt.Sprintf("%s:%s", ipaddress, ipport))
 	if err != nil {
 		Errors <- err
@@ -82,6 +95,7 @@ func NewPid(address, port string) *Pid {
 	RegisterGerlMessagerServer(grpcServer, npid)
 	reflection.Register(grpcServer)
 
+	// go routine to run grpc server in the background
 	go func() {
 		if err := grpcServer.Serve(lis); err != nil {
 			npid.Errors <- err
@@ -92,10 +106,12 @@ func NewPid(address, port string) *Pid {
 	return npid
 }
 
+// Getter for address in format ip:port
 func (p Pid) GetAddr() string {
 	return p.Addr
 }
 
+// Terminates the Pid and closes all of the Pid side components
 func (p *Pid) Terminate() {
 	log.Printf("Pid <%v> terminating\n", p)
 	log.Println("closing grpc server")
@@ -108,9 +124,11 @@ func (p *Pid) Terminate() {
 	log.Printf("pid<%v> terminated\n", p)
 }
 
+// Creates GRPC client with only an address string
 func newClient(pidAddress string) (*grpc.ClientConn, GerlMessagerClient) {
 	var conn *grpc.ClientConn
 
+	// gets connection to remote GRPC server
 	conn, err := grpc.Dial(pidAddress, grpc.WithInsecure())
 	if err != nil {
 		log.Fatalln("could not connect to server: ", err)
@@ -118,10 +136,13 @@ func newClient(pidAddress string) (*grpc.ClientConn, GerlMessagerClient) {
 
 	client := NewGerlMessagerClient(conn)
 
+	// return connection and messager client
 	return conn, client
 
 }
 
+// Sends a Call message to the Pid from a Message struct
+// Constructs both the client and GerlMessagee needed
 func PidCall(toaddr string, fromaddr string, msg Message) Message {
 	conn, client := newClient(toaddr)
 	defer conn.Close()
@@ -137,6 +158,8 @@ func PidCall(toaddr string, fromaddr string, msg Message) Message {
 	return *returnGerlMsg.GetMsg()
 }
 
+// Sends a Cast message to the Pid from a Message struct
+// Constructs both the client and GerlMessagee needed
 func PidCast(toaddr string, fromaddr string, msg Message) {
 	conn, client := newClient(toaddr)
 	defer conn.Close()
@@ -151,6 +174,8 @@ func PidCast(toaddr string, fromaddr string, msg Message) {
 	}
 }
 
+// Sends a Cast message with type PROC to the Pid from a Message struct
+// Constructs both the client and GerlMessagee needed
 func PidSendProc(toaddr string, fromaddr string, msg Message) {
 	conn, client := newClient(toaddr)
 	defer conn.Close()
