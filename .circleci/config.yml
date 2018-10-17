@@ -10,5 +10,5 @@ jobs:
     - run: go test -v ./genserver ./process -coverprofile=circleci.cover
     - run: go tool cover -html=circleci.cover -o circleci.html
     - store_artifacts:
-      path: ./circleci.html
+        path: ./circleci.html
 
