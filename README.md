@@ -3,6 +3,7 @@ GERL
 
 Pronounced like gurl ... as in "hey gurl, hey"...
 
+[![CircleCI](https://circleci.com/gh/jtaylorcpp/gerl.svg?style=svg)](https://circleci.com/gh/jtaylorcpp/gerl)
 
 Gerl is an attempt to build out the remarkable parts of the Erlang/OTP for Go
 while keeping in spirit with the language.
