@@ -7,6 +7,6 @@ jobs:
     steps:
     - checkout
     - run: go get -v -t -d ./...
-    - run: go test -v ./... -coverprofile=circleci.cover
+    - run: go test -v ./genserver ./process -coverprofile=circleci.cover
     - run: go cover tool -html=circleci.cover -o circleci.html
 
