@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"net"
+	"time"
 
 	"golang.org/x/net/context"
 	"google.golang.org/grpc"
@@ -14,17 +15,26 @@ import (
 // global var which allows pids to know what ip address to bind to
 var IPAddress string
 
+var MessageTimeout time.Duration
+var HealthTimeout time.Duration
+
 // initializes the pid environment
 //  - IPAddress to bind all pids to
 func init() {
 	if IPAddress == "" {
 		IPAddress = "127.0.0.1"
 	}
+
+	MessageTimeout = 50 * time.Millisecond
+	HealthTimeout = 50 * time.Millisecond
 }
 
 // ProcessID (Pid) is the struct used to keep track of the main
 //  communication method to a running process
 type Pid struct {
+	// GRPC server
+	Server   *grpc.Server
+	Listener net.Listener
 	// Address of the currently running Pid
 	Addr string
 	// Inbox for messages passed to a process
@@ -33,10 +43,8 @@ type Pid struct {
 	Outbox chan GerlMsg
 	// Error chan to be monitored by the process using the Pid
 	Errors chan error
-	// GRPC server
-	Server *grpc.Server
-	// Running check
-	Running bool
+	// Listener termination
+	LisTerm chan bool
 }
 
 // GRPC function for interface GerlMessager
@@ -48,10 +56,15 @@ func (p *Pid) Call(ctx context.Context, in *GerlMsg) (*GerlMsg, error) {
 	return returnMsg, nil
 }
 
-// GRPC function for interface GerlMessage
+// GRPC function for interface GerlMessager
 func (p *Pid) Cast(ctx context.Context, in *GerlMsg) (*Empty, error) {
 	p.Inbox <- *in
 	return &Empty{}, nil
+}
+
+//GRPC function for interface GerlMessager
+func (p *Pid) RUOK(ctx context.Context, _ *Empty) (*Health, error) {
+	return &Health{Status: Health_ALIVE}, nil
 }
 
 // Generates new Pid to use by process in Gerl
@@ -83,12 +96,13 @@ func NewPid(address, port string) *Pid {
 
 	// create pid to return
 	npid := &Pid{
-		Addr:    lis.Addr().(*net.TCPAddr).String(),
-		Inbox:   make(chan GerlMsg, 8),
-		Outbox:  make(chan GerlMsg, 8),
-		Errors:  Errors,
-		Server:  grpcServer,
-		Running: false,
+		Listener: lis,
+		Addr:     lis.Addr().(*net.TCPAddr).String(),
+		Inbox:    make(chan GerlMsg, 8),
+		Outbox:   make(chan GerlMsg, 8),
+		Errors:   Errors,
+		Server:   grpcServer,
+		LisTerm:  make(chan bool, 1),
 	}
 
 	// register pid and grpc server
@@ -99,10 +113,12 @@ func NewPid(address, port string) *Pid {
 	go func() {
 		if err := grpcServer.Serve(lis); err != nil {
 			npid.Errors <- err
+			npid.LisTerm <- true
+		} else {
+			npid.LisTerm <- true
 		}
 	}()
 
-	npid.Running = true
 	return npid
 }
 
@@ -114,13 +130,16 @@ func (p Pid) GetAddr() string {
 // Terminates the Pid and closes all of the Pid side components
 func (p *Pid) Terminate() {
 	log.Printf("Pid <%v> terminating\n", p)
+	log.Println("closing listener")
+	p.Listener.Close()
 	log.Println("closing grpc server")
 	p.Server.Stop()
 	log.Println("closing channels")
 	close(p.Inbox)
 	p.Errors <- errors.New("pid terminated")
+	// blocking since the listener close out may generate an error
+	<-p.LisTerm
 	close(p.Errors)
-	p.Running = false
 	log.Printf("pid<%v> terminated\n", p)
 }
 
@@ -151,7 +170,9 @@ func PidCall(toaddr string, fromaddr string, msg Message) Message {
 		Fromaddr: fromaddr,
 		Msg:      &msg,
 	}
-	returnGerlMsg, err := client.Call(context.Background(), gerlMsg)
+	deadline := time.Now().Add(MessageTimeout)
+	ctx, _ := context.WithDeadline(context.Background(), deadline)
+	returnGerlMsg, err := client.Call(ctx, gerlMsg)
 	if err != nil {
 		log.Printf("error<%v> calling pid<%v> with msg<%v>\n", err, toaddr, msg)
 	}
@@ -168,7 +189,9 @@ func PidCast(toaddr string, fromaddr string, msg Message) {
 		Fromaddr: fromaddr,
 		Msg:      &msg,
 	}
-	_, err := client.Cast(context.Background(), gerlMsg)
+	deadline := time.Now().Add(MessageTimeout)
+	ctx, _ := context.WithDeadline(context.Background(), deadline)
+	_, err := client.Cast(ctx, gerlMsg)
 	if err != nil {
 		log.Printf("error<%v> cast pid<%v> with msg<%v>\n", err, toaddr, msg)
 	}
@@ -184,8 +207,28 @@ func PidSendProc(toaddr string, fromaddr string, msg Message) {
 		Fromaddr: fromaddr,
 		Msg:      &msg,
 	}
-	_, err := client.Cast(context.Background(), gerlMsg)
+	deadline := time.Now().Add(MessageTimeout)
+	ctx, _ := context.WithDeadline(context.Background(), deadline)
+	_, err := client.Cast(ctx, gerlMsg)
 	if err != nil {
 		log.Printf("error<%v> cast pid<%v> with msg<%v>\n", err, toaddr, msg)
 	}
+}
+
+func PidHealthCheck(toaddr string) bool {
+	conn, client := newClient(toaddr)
+	defer conn.Close()
+	deadline := time.Now().Add(HealthTimeout)
+	ctx, _ := context.WithDeadline(context.Background(), deadline)
+	health, err := client.RUOK(ctx, &Empty{})
+	if err != nil {
+		log.Printf("error<%v> getting pid<%v> health\n", err, toaddr)
+		return false
+	}
+
+	if health.GetStatus() == Health_ALIVE {
+		return true
+	}
+
+	return false
 }

@@ -6,6 +6,7 @@ package core;
 service GerlMessager {
 	rpc Call(GerlMsg) returns (GerlMsg) {}
 	rpc Cast(GerlMsg) returns (Empty) {}
+	rpc RUOK(Empty) returns (Health) {}
 }
 
 message Empty{}
@@ -29,4 +30,12 @@ message Message {
 	
 	Type type = 1;
 	string description = 2;
+}
+
+message Health {
+	enum Status {
+		ALIVE = 0;
+	}
+	
+	Status status = 1;
 }
