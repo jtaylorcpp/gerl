@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"net"
+	"time"
 
 	"golang.org/x/net/context"
 	"google.golang.org/grpc"
@@ -25,6 +26,7 @@ func init() {
 // ProcessID (Pid) is the struct used to keep track of the main
 //  communication method to a running process
 type Pid struct {
+	Listener net.Listener
 	// Address of the currently running Pid
 	Addr string
 	// Inbox for messages passed to a process
@@ -88,12 +90,13 @@ func NewPid(address, port string) *Pid {
 
 	// create pid to return
 	npid := &Pid{
-		Addr:    lis.Addr().(*net.TCPAddr).String(),
-		Inbox:   make(chan GerlMsg, 8),
-		Outbox:  make(chan GerlMsg, 8),
-		Errors:  Errors,
-		Server:  grpcServer,
-		Running: false,
+		Listener: lis,
+		Addr:     lis.Addr().(*net.TCPAddr).String(),
+		Inbox:    make(chan GerlMsg, 8),
+		Outbox:   make(chan GerlMsg, 8),
+		Errors:   Errors,
+		Server:   grpcServer,
+		Running:  false,
 	}
 
 	// register pid and grpc server
@@ -119,6 +122,8 @@ func (p Pid) GetAddr() string {
 // Terminates the Pid and closes all of the Pid side components
 func (p *Pid) Terminate() {
 	log.Printf("Pid <%v> terminating\n", p)
+	log.Println("closing listener")
+	p.Listener.Close()
 	log.Println("closing grpc server")
 	p.Server.Stop()
 	log.Println("closing channels")
@@ -193,4 +198,22 @@ func PidSendProc(toaddr string, fromaddr string, msg Message) {
 	if err != nil {
 		log.Printf("error<%v> cast pid<%v> with msg<%v>\n", err, toaddr, msg)
 	}
+}
+
+func PidHealthCheck(toaddr string) bool {
+	conn, client := newClient(toaddr)
+	defer conn.Close()
+	deadline := time.Now().Add(10 * time.Millisecond)
+	ctx, _ := context.WithDeadline(context.Background(), deadline)
+	health, err := client.RUOK(ctx, &Empty{})
+	if err != nil {
+		log.Printf("error<%v> getting pid<%v> health\n", err, toaddr)
+		return false
+	}
+
+	if health.GetStatus() == Health_ALIVE {
+		return true
+	}
+
+	return false
 }
