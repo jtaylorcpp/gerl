@@ -26,6 +26,8 @@ func init() {
 // ProcessID (Pid) is the struct used to keep track of the main
 //  communication method to a running process
 type Pid struct {
+	// GRPC server
+	Server   *grpc.Server
 	Listener net.Listener
 	// Address of the currently running Pid
 	Addr string
@@ -35,8 +37,8 @@ type Pid struct {
 	Outbox chan GerlMsg
 	// Error chan to be monitored by the process using the Pid
 	Errors chan error
-	// GRPC server
-	Server *grpc.Server
+	// Listener termination
+	LisTerm chan bool
 	// Running check
 	Running bool
 }
@@ -97,6 +99,7 @@ func NewPid(address, port string) *Pid {
 		Errors:   Errors,
 		Server:   grpcServer,
 		Running:  false,
+		LisTerm:  make(chan bool, 1),
 	}
 
 	// register pid and grpc server
@@ -107,6 +110,9 @@ func NewPid(address, port string) *Pid {
 	go func() {
 		if err := grpcServer.Serve(lis); err != nil {
 			npid.Errors <- err
+			npid.LisTerm <- true
+		} else {
+			npid.LisTerm <- true
 		}
 	}()
 
@@ -129,6 +135,8 @@ func (p *Pid) Terminate() {
 	log.Println("closing channels")
 	close(p.Inbox)
 	p.Errors <- errors.New("pid terminated")
+	// blocking since the listener close out may generate an error
+	<-p.LisTerm
 	close(p.Errors)
 	p.Running = false
 	log.Printf("pid<%v> terminated\n", p)

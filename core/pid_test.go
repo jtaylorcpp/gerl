@@ -37,6 +37,35 @@ func TestCall(t *testing.T) {
 	pid.Terminate()
 }
 
+func BenchmarkCall(b *testing.B) {
+	pid := NewPid("", "")
+
+	testMsg := Message{
+		Type:        Message_SIMPLE,
+		Description: "call test",
+	}
+
+	testGerl := GerlMsg{
+		Type:     GerlMsg_CALL,
+		Fromaddr: "calladdr",
+		Msg:      &testMsg,
+	}
+
+	for i := 0; i < b.N; i++ {
+		pid.Outbox <- testGerl
+		returnMsg := PidCall(pid.GetAddr(), "calladdr", testMsg)
+
+		<-pid.Inbox
+
+		if !reflect.DeepEqual(returnMsg, returnMsg) {
+			b.Fatal("messages did not match on ")
+		}
+
+	}
+
+	pid.Terminate()
+}
+
 func TestCast(t *testing.T) {
 	pid := NewPid("", "")
 
@@ -84,5 +113,20 @@ func TestHealth(t *testing.T) {
 
 	if health2 != false {
 		t.Fatal("pid still healthy")
+	}
+}
+
+func BenchmarkHealth(b *testing.B) {
+	for i := 0; i < b.N; i++ {
+		pid := NewPid("", "")
+
+		for {
+			health := PidHealthCheck(pid.GetAddr())
+			if health == true {
+				break
+			}
+		}
+
+		pid.Terminate()
 	}
 }
