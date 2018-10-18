@@ -14,7 +14,7 @@ func TestGenServer(t *testing.T) {
 		t.Log("genserver start error ", genserver.Start())
 	}()
 
-	for !genserver.Pid.Running {
+	for !core.PidHealthCheck(genserver.Pid.GetAddr()) {
 		time.Sleep(25 * time.Microsecond)
 		t.Log("waiting for genserver to start")
 	}

@@ -58,7 +58,10 @@ func TestGenServers(t *testing.T) {
 		t.Log(gs2.Start())
 	}()
 
-	time.Sleep(50 * time.Millisecond)
+	for !core.PidHealthCheck(gs1.Pid.GetAddr()) || !core.PidHealthCheck(gs2.Pid.GetAddr()) {
+		time.Sleep(25 * time.Microsecond)
+		t.Log("waiting for genserver to start")
+	}
 
 	PongAddr = PidAddr(gs2.Pid.GetAddr())
 
