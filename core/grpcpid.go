@@ -48,10 +48,15 @@ func (p *Pid) Call(ctx context.Context, in *GerlMsg) (*GerlMsg, error) {
 	return returnMsg, nil
 }
 
-// GRPC function for interface GerlMessage
+// GRPC function for interface GerlMessager
 func (p *Pid) Cast(ctx context.Context, in *GerlMsg) (*Empty, error) {
 	p.Inbox <- *in
 	return &Empty{}, nil
+}
+
+//GRPC function for interface GerlMessager
+func (p *Pid) RUOK(ctx context.Context, _ *Empty) (*Health, error) {
+	return &Health{Status: Health_ALIVE}, nil
 }
 
 // Generates new Pid to use by process in Gerl
