@@ -18,7 +18,8 @@ type ProcHandler func(PidAddr, Inbox) error
 // to process core.GerlMsg
 type Process struct {
 	// Pid use to communicate with the Process
-	Pid *core.Pid
+	Pid   *core.Pid
+	Scope core.Scope
 	// Handler is the Inbox handler that is started as a go-routine
 	Handler ProcHandler
 	// Error channel that forces a termination when an error is sent
@@ -28,9 +29,10 @@ type Process struct {
 }
 
 // Builds a new Process that has yet to be started
-func New(handler ProcHandler) *Process {
+func New(scope core.Scope, handler ProcHandler) *Process {
 	return &Process{
 		Pid:        &core.Pid{},
+		Scope:      scope,
 		Handler:    handler,
 		Errors:     make(chan error, 2),
 		Terminated: make(chan bool, 1),
@@ -42,7 +44,7 @@ func New(handler ProcHandler) *Process {
 // Process and Pid. All errors recieved immediately return and error.
 func (p *Process) Start() error {
 
-	p.Pid = core.NewPid("", "")
+	p.Pid = core.NewPid("", "", p.Scope)
 
 	log.Println("Process available at addr: ", p.Pid.GetAddr())
 
