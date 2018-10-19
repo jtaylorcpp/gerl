@@ -46,6 +46,7 @@ type GenServer struct {
 	// State uses the empty interface GenericServerState to handle arbitrary
 	// state information.
 	State State
+	Scope core.Scope
 	// CustomCall is a func ran inside of this implementations CallHandler.
 	// This allows a user defined call routine to be ran within the
 	// GenericServer interface.
@@ -61,11 +62,12 @@ type GenServer struct {
 
 // Initializes the GenServer with the intial state
 // takes in both the Call handler and Cast handler to be used in the main loop
-func NewGenServer(state State, call GenServerCallHandler, cast GenServerCastHandler) *GenServer {
+func NewGenServer(state State, scope core.Scope, call GenServerCallHandler, cast GenServerCastHandler) *GenServer {
 	log.Println("Initializing GenServer with state: ", state)
 	return &GenServer{
 		Pid:        &core.Pid{},
 		State:      state,
+		Scope:      scope,
 		CustomCall: call,
 		CustomCast: cast,
 		Errors:     make(chan error),
@@ -81,7 +83,7 @@ func NewGenServer(state State, call GenServerCallHandler, cast GenServerCastHand
 // by the pid. This "outbox" is also closed when the GenServer main loop is broken.
 func (gs *GenServer) Start() error {
 	// generate a new pid
-	gs.Pid = core.NewPid("", "")
+	gs.Pid = core.NewPid("", "", gs.Scope)
 	log.Println("GenServer available at pid: ", gs.Pid.GetAddr())
 	var loopState State
 	loopState = gs.State

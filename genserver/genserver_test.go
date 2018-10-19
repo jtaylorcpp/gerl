@@ -9,7 +9,7 @@ import (
 )
 
 func TestGenServer(t *testing.T) {
-	genserver := NewGenServer("test state", CallTest, CastTest)
+	genserver := NewGenServer("test state", core.LocalScope, CallTest, CastTest)
 	go func() {
 		t.Log("genserver start error ", genserver.Start())
 	}()

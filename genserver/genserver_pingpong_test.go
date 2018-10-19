@@ -47,8 +47,8 @@ func pongCall(_ core.Pid, msg core.Message, fromaddr FromAddr, s State) (core.Me
 }
 
 func TestGenServers(t *testing.T) {
-	gs1 := NewGenServer("genserver 1", pingCall, defaultCast)
-	gs2 := NewGenServer("genserver 2", pongCall, defaultCast)
+	gs1 := NewGenServer("genserver 1", core.LocalScope, pingCall, defaultCast)
+	gs2 := NewGenServer("genserver 2", core.GlobalScope, pongCall, defaultCast)
 
 	go func() {
 		t.Log(gs1.Start())
