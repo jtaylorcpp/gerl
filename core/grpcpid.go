@@ -13,20 +13,69 @@ import (
 )
 
 // global var which allows pids to know what ip address to bind to
-var IPAddress string
+const (
+	localIP string = "127.0.0.1"
+)
+
+var GlobalIP string
 
 var MessageTimeout time.Duration
 var HealthTimeout time.Duration
 
+type Scope byte
+
+const (
+	LocalScope  Scope = 0x01
+	GlobalScope Scope = 0x02
+)
+
 // initializes the pid environment
 //  - IPAddress to bind all pids to
 func init() {
-	if IPAddress == "" {
-		IPAddress = "127.0.0.1"
-	}
 
 	MessageTimeout = 50 * time.Millisecond
 	HealthTimeout = 50 * time.Millisecond
+}
+
+func getPublicIP() string {
+	ifaces, err := net.Interfaces()
+	if err != nil {
+		panic(err)
+	}
+
+	for _, iface := range ifaces {
+		log.Println("checking iface: ", iface)
+
+		switch iface.Name {
+		case "docker0", "lo":
+			continue
+		default:
+			addrs, err := iface.Addrs()
+			if err != nil {
+				panic(err)
+			}
+
+			for _, addr := range addrs {
+				log.Println("checking addr: ", addr)
+				switch t := addr.(type) {
+				case *net.IPNet:
+					log.Println("ipnet: ", t)
+					if t.IP.To4() == nil {
+						continue
+					}
+					return t.IP.To4().String()
+				case *net.IPAddr:
+					log.Println("ipaddr: ", t)
+					if t.IP.To4() == nil {
+						continue
+					}
+					return t.IP.To4().String()
+				}
+			}
+		}
+	}
+
+	return ""
 }
 
 // ProcessID (Pid) is the struct used to keep track of the main
@@ -45,6 +94,7 @@ type Pid struct {
 	Errors chan error
 	// Listener termination
 	LisTerm chan bool
+	Scope   Scope
 }
 
 // GRPC function for interface GerlMessager
@@ -68,14 +118,21 @@ func (p *Pid) RUOK(ctx context.Context, _ *Empty) (*Health, error) {
 }
 
 // Generates new Pid to use by process in Gerl
-func NewPid(address, port string) *Pid {
+func NewPid(address, port string, scope Scope) *Pid {
 	// error chan to elevate to process using pid
 	Errors := make(chan error, 10)
 
 	// get default addresses to use
-	ipaddress := IPAddress
-	if address != "" {
-		ipaddress = address
+	var ipaddress string
+	switch scope {
+	case LocalScope:
+		ipaddress = localIP
+	case GlobalScope:
+		if GlobalIP == "" {
+			ipaddress = getPublicIP()
+		} else {
+			ipaddress = GlobalIP
+		}
 	}
 	// if port is unset use 0
 	ipport := "0"
@@ -103,6 +160,7 @@ func NewPid(address, port string) *Pid {
 		Errors:   Errors,
 		Server:   grpcServer,
 		LisTerm:  make(chan bool, 1),
+		Scope:    scope,
 	}
 
 	// register pid and grpc server
