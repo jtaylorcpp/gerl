@@ -29,13 +29,15 @@ This is mainly done by using:
 
 ## Why
 
-Golang is a ton of fun. Its reads and writes easily with a good balance of performances and has a robust community around it. Golang is a daily driver.
+Golang is a ton of fun. Its reads and writes easily with a good balance of performance and has a robust community around it. Golang is a daily driver.
 
 However, Golang does have a list of issues or features missing that often makes people look at and learn new languages. 
 
 On such journey took me down the path of learning Erlang. Erlangs legedary status of reliable deployments and everest like learning curve made a stark contrast to Golang. Through the hours and days of unraveling the Erlang mystery; there were a few features that, once you got the hang of, made you wonder why they didnt exist elsewhere.
 
-One such set of features is the event driven and message passing process. Message passing is baked into the essence of Erlang as is the spirit of functional programming. Yet the combination of the two into the Erlang gen_server is a piece of magic. Quickly define the handlers for certain types of messages and spin up a hyper-lightweight process that is not networked and completey event driven using your provided handlers. MAGIC. 
+One such set of features is the event driven and message passing process. Message passing is baked into the essence of Erlang as is the spirit of functional programming. Yet the combination of the two into the Erlang gen_server is a piece of magic. Quickly define the handlers for certain types of messages and spin up a hyper-lightweight process. Networking...provided. Event driven messaging...use the handlers. State management...included in the server init. 
+
+MAGIC.
 
 ## Basic Concepts
 
