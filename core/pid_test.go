@@ -5,8 +5,13 @@ import (
 	"testing"
 )
 
+func TestIPSelection(t *testing.T) {
+	ip := getPublicIP()
+	t.Log("selected ip: ", ip)
+}
+
 func TestCall(t *testing.T) {
-	pid := NewPid("", "")
+	pid := NewPid("", "", LocalScope)
 
 	testMsg := Message{
 		Type:        Message_SIMPLE,
@@ -38,7 +43,7 @@ func TestCall(t *testing.T) {
 }
 
 func BenchmarkCall(b *testing.B) {
-	pid := NewPid("", "")
+	pid := NewPid("", "", LocalScope)
 
 	testMsg := Message{
 		Type:        Message_SIMPLE,
@@ -67,7 +72,7 @@ func BenchmarkCall(b *testing.B) {
 }
 
 func TestCast(t *testing.T) {
-	pid := NewPid("", "")
+	pid := NewPid("", "", LocalScope)
 
 	testMsg := Message{
 		Type:        Message_SIMPLE,
@@ -94,7 +99,30 @@ func TestCast(t *testing.T) {
 }
 
 func TestHealth(t *testing.T) {
-	pid := NewPid("", "")
+	pid := NewPid("", "", LocalScope)
+	addr := pid.GetAddr()
+
+	health := PidHealthCheck(addr)
+
+	t.Log("health check recieved: ", health)
+
+	if health != true {
+		t.Fatal("pid not healthy")
+	}
+
+	pid.Terminate()
+
+	health2 := PidHealthCheck(addr)
+
+	t.Log("health from terminated pid: ", health2)
+
+	if health2 != false {
+		t.Fatal("pid still healthy")
+	}
+}
+
+func TestHealthPublic(t *testing.T) {
+	pid := NewPid("", "", GlobalScope)
 	addr := pid.GetAddr()
 
 	health := PidHealthCheck(addr)
@@ -118,7 +146,7 @@ func TestHealth(t *testing.T) {
 
 func BenchmarkHealth(b *testing.B) {
 	for i := 0; i < b.N; i++ {
-		pid := NewPid("", "")
+		pid := NewPid("", "", LocalScope)
 
 		for {
 			health := PidHealthCheck(pid.GetAddr())

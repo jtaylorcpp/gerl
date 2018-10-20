@@ -11,7 +11,7 @@ import (
 var SetValue string
 
 func TestProcess(t *testing.T) {
-	proc := New(func(pa PidAddr, in Inbox) error {
+	proc := New(core.LocalScope, func(pa PidAddr, in Inbox) error {
 		for {
 			msg, ok := <-in
 			if !ok {
