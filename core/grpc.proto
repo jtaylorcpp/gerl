@@ -26,10 +26,12 @@ message GerlMsg {
 message Message {
 	enum Type {
 		SIMPLE = 0;
+		SYNC = 1;
 	}
 	
 	Type type = 1;
 	string description = 2;
+	repeated string values = 3;
 }
 
 message Health {
