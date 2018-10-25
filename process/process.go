@@ -44,7 +44,7 @@ func New(scope core.Scope, handler ProcHandler) *Process {
 // Process and Pid. All errors recieved immediately return and error.
 func (p *Process) Start() error {
 
-	p.Pid = core.NewPid("", "", p.Scope)
+	p.Pid = core.NewPid("", p.Scope)
 
 	log.Println("Process available at addr: ", p.Pid.GetAddr())
 

@@ -118,7 +118,7 @@ func (p *Pid) RUOK(ctx context.Context, _ *Empty) (*Health, error) {
 }
 
 // Generates new Pid to use by process in Gerl
-func NewPid(address, port string, scope Scope) *Pid {
+func NewPid(port string, scope Scope) *Pid {
 	// error chan to elevate to process using pid
 	Errors := make(chan error, 10)
 

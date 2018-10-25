@@ -82,8 +82,19 @@ func NewGenServer(state State, scope core.Scope, call GenServerCallHandler, cast
 // All messages output by the CallHandler are sent to the "outbox" and processed
 // by the pid. This "outbox" is also closed when the GenServer main loop is broken.
 func (gs *GenServer) Start() error {
+	return gs.start("")
+}
+func (gs *GenServer) StartWithPort(port string) error {
+	var usePort string = ""
+
+	if port != usePort {
+		usePort = port
+	}
+	return gs.start(usePort)
+}
+func (gs *GenServer) start(port string) error {
 	// generate a new pid
-	gs.Pid = core.NewPid("", "", gs.Scope)
+	gs.Pid = core.NewPid(port, gs.Scope)
 	log.Println("GenServer available at pid: ", gs.Pid.GetAddr())
 	var loopState State
 	loopState = gs.State

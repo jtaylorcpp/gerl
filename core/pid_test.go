@@ -11,7 +11,7 @@ func TestIPSelection(t *testing.T) {
 }
 
 func TestCall(t *testing.T) {
-	pid := NewPid("", "", LocalScope)
+	pid := NewPid("", LocalScope)
 
 	testMsg := Message{
 		Type:        Message_SIMPLE,
@@ -43,7 +43,7 @@ func TestCall(t *testing.T) {
 }
 
 func BenchmarkCall(b *testing.B) {
-	pid := NewPid("", "", LocalScope)
+	pid := NewPid("", LocalScope)
 
 	testMsg := Message{
 		Type:        Message_SIMPLE,
@@ -72,7 +72,7 @@ func BenchmarkCall(b *testing.B) {
 }
 
 func TestCast(t *testing.T) {
-	pid := NewPid("", "", LocalScope)
+	pid := NewPid("", LocalScope)
 
 	testMsg := Message{
 		Type:        Message_SIMPLE,
@@ -99,7 +99,7 @@ func TestCast(t *testing.T) {
 }
 
 func TestHealth(t *testing.T) {
-	pid := NewPid("", "", LocalScope)
+	pid := NewPid("", LocalScope)
 	addr := pid.GetAddr()
 
 	health := PidHealthCheck(addr)
@@ -122,7 +122,7 @@ func TestHealth(t *testing.T) {
 }
 
 func TestHealthPublic(t *testing.T) {
-	pid := NewPid("", "", GlobalScope)
+	pid := NewPid("", GlobalScope)
 	addr := pid.GetAddr()
 
 	health := PidHealthCheck(addr)
@@ -146,7 +146,7 @@ func TestHealthPublic(t *testing.T) {
 
 func BenchmarkHealth(b *testing.B) {
 	for i := 0; i < b.N; i++ {
-		pid := NewPid("", "", LocalScope)
+		pid := NewPid("", LocalScope)
 
 		for {
 			health := PidHealthCheck(pid.GetAddr())
