@@ -9,6 +9,8 @@ import (
 	gs "github.com/jtaylorcpp/gerl/genserver"
 )
 
+var REGADDR string
+
 func defaultCast(_ core.Pid, _ core.Message, _ gs.FromAddr, s gs.State) gs.State {
 	return s
 }
@@ -16,18 +18,18 @@ func defaultCast(_ core.Pid, _ core.Message, _ gs.FromAddr, s gs.State) gs.State
 func pingCall(pid core.Pid, msg core.Message, fromaddr gs.FromAddr, s gs.State) (core.Message, gs.State) {
 	log.Println("ping description: ", msg.GetDescription())
 	switch msg.GetDescription() {
-	/*case "serve":
-
-	//run ping
-	log.Println("ping sending to pong")
-	log.Printf("fromaddr<%v> pongaddr<%v> msg<%v>\n", fromaddr, PongAddr, core.Message{Type: core.Message_SIMPLE, Description: "ping"})
-	pong := Call(PongAddr, FromAddr(pid.GetAddr()), core.Message{
-		Type:        core.Message_SIMPLE,
-		Description: "ping",
-	})
-	log.Println("ping go msg: ", pong)
-	return pong, s
-	*/
+	case "serve":
+		//run ping
+		log.Println("ping sending to pong")
+		pongRecord := GetRecords(REGADDR, pid.GetAddr(), "pong")[0]
+		log.Println("pong record: ", pongRecord)
+		log.Printf("fromaddr<%v> pongaddr<%v> msg<%v>\n", fromaddr, pongRecord.Address, core.Message{Type: core.Message_SIMPLE, Description: "ping"})
+		pong := gs.Call(gs.PidAddr(pongRecord.Address), gs.FromAddr(pid.GetAddr()), core.Message{
+			Type:        core.Message_SIMPLE,
+			Description: "ping",
+		})
+		log.Println("ping go msg: ", pong)
+		return pong, s
 	default:
 		log.Println("ping unknown message: ", msg)
 		return core.Message{}, s
@@ -73,6 +75,8 @@ func TestRegistrarPingPong(t *testing.T) {
 	log.Println("pong server addr: ", gs2.Pid.GetAddr())
 	log.Println("registrar sever addr: ", reg.Pid.GetAddr())
 
+	REGADDR = string(reg.Pid.GetAddr())
+
 	if AddRecords(reg.Pid.GetAddr(), "localhost",
 		NewRecord("ping", gs1.Pid.GetAddr(), core.GlobalScope),
 		NewRecord("pong", gs2.Pid.GetAddr(), core.GlobalScope)) {
@@ -92,25 +96,9 @@ func TestRegistrarPingPong(t *testing.T) {
 
 	t.Log("msg recieved from serve: ", pingMsg)
 
-	/*
-
-		t.Log("pong test: ", rmsg1)
-
-		if rmsg1.GetDescription() != "ping pong" {
-			t.Fatal("pong test failed")
-		}
-
-		rmsg2 := Call(PidAddr(gs1.Pid.GetAddr()), FromAddr("localhost"), core.Message{
-			Type:        core.Message_SIMPLE,
-			Description: "serve",
-		})
-
-		t.Log("ping test: ", rmsg2)
-
-		if rmsg2.GetDescription() != "ping pong" {
-			t.Fatal("ping serve test failed")
-		}
-	*/
+	if pingMsg.GetDescription() != "ping pong" {
+		t.Log("ping pong and register not working")
+	}
 
 	gs1.Terminate()
 	gs2.Terminate()
