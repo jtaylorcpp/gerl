@@ -27,6 +27,9 @@ message Message {
 	enum Type {
 		SIMPLE = 0;
 		SYNC = 1;
+		REGISTER_GET = 3;
+		REGISTER_SET = 4;
+		REGISTER_PUT = 5;
 	}
 	
 	Type type = 1;

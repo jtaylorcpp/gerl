@@ -9,7 +9,7 @@ import (
 )
 
 func TestRegistrar(t *testing.T) {
-	reg := New(core.GlobalScope)
+	reg := NewRegistrar(core.GlobalScope)
 
 	t.Log("new registrar: ", reg)
 
