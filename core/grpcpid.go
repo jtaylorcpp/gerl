@@ -22,11 +22,11 @@ var GlobalIP string
 var MessageTimeout time.Duration
 var HealthTimeout time.Duration
 
-type Scope byte
+type Scope string
 
 const (
-	LocalScope  Scope = 0x01
-	GlobalScope Scope = 0x02
+	LocalScope  Scope = "local"
+	GlobalScope Scope = "global"
 )
 
 // initializes the pid environment
