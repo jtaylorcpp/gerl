@@ -19,6 +19,8 @@ Gerl provides functionality for:
 
   - message passing between pids
 
+  - clustered registrar service 
+
 This is mainly done by using:
 
   - channels
@@ -39,7 +41,7 @@ One such set of features is the event driven and message passing process. Messag
 
 MAGIC.
 
-## Basic Concepts
+## All the Things
 
 ### Process ID (Pid)
 
@@ -47,31 +49,25 @@ Processes IDs (pid) is the main abstraction for communicating
 with a running process. The pid contains channels for bidirectional communication 
 from the running process and, under the hood, handles the GRPC implemtation. 
 
-The pid has both an *inbox* and *outbox* which are channels used to pass messages
-into a processes handler/main loop. This allows for the go-routine running the process
-to get to the message once it is done handling other messages.
-
 All messages sent to a pid are blocking with repsect to the GRPC server implementaiton.
- For *casts*, which to a process appear to be non-blocking, have an empty message returned
-at the GRPC layer which forces both pid to be able to confirm a message was passed.
-*Calls* return a new message at the GRPC layer and will wait until a process gets to and 
-processes the message.
+  *Casts* result in an immediately returned empty message and  *Calls* result in the
+Pid waiting for the process to return a full message.
 
 ### Generic Server (genserver)
 
 Generic servers, genservers, are a concept directly pulled from Erlang/OTP. A genserver
 is a process that has a pre-specified set of functionality; mainly a *call* and *cast*.
 
-
 *call* is a bidirectional action in which a client sends a message to and expects
-a result back from a genserver. The genserver has a specific function dedicated
-to handling *call* actions.
+a result back from a genserver. 
 
 *cast* is a unidirectional action in which the client sends a message to a genserver
-and moves on.
+and does not expect a message to be returned.
 
-The genserver client builds the GRCP client necessary to make the calls and needs the 
-address of the pid of the genserver to send messages back and forth.
+The GenServer constructor accepts handlers for both *Call* and *Cast*.
+
+The client func's for *call* and *cast* only need the Pid address and the message to be 
+ passed; no messy business building a GRPC client.
 
 ### Process (proc)
 
@@ -79,10 +75,7 @@ Processes are another concept borrowed from Erlang/OTP. In this case, process ha
 handler which is started as a go-routine and the pid, as with a genserver, is the
 main way to communicate with the running process.
 
-All messages to processes are intentionally unidirection and processes must be designed
-to allow for bi-directional communicate. Although less featureful, the genserver is the
-child of the process in which the genserver implements opinionated and strict constraits on
-the process idea.
+All messages to processes are implemented like a *cast* in that they nover expect a message directly back.
 
 
 ## Getting started

@@ -86,12 +86,16 @@ func NewRegistrar(scope core.Scope) *genserver.GenServer {
 }
 
 type register struct {
-	recordmap map[string]map[string]Record
-	ticker    *time.Ticker
+	recordmap    map[string]map[string]Record
+	registrarmap map[string]bool
+	ticker       *time.Ticker
 }
 
 func newRegister() register {
-	return register{recordmap: make(map[string]map[string]Record)}
+	return register{
+		recordmap:    make(map[string]map[string]Record),
+		registrarmap: make(map[string]bool),
+	}
 }
 
 type Record struct {
