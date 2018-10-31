@@ -3,6 +3,7 @@ package registrar
 import (
 	"fmt"
 	"log"
+	"time"
 
 	"github.com/jtaylorcpp/gerl/core"
 	"github.com/jtaylorcpp/gerl/genserver"
@@ -15,41 +16,50 @@ type CastHandler genserver.GenServerCastHandler
 func registrarCallHander(pid core.Pid, in core.Message, from genserver.FromAddr, state genserver.State) (core.Message, genserver.State) {
 	log.Printf("Registrar call handler msg: <%v>\n", in)
 	switch in.GetType() {
-	case core.Message_REGISTER_SET, core.Message_REGISTER_PUT:
-		log.Println("Registar handling REGISTER_[SET|PUT]")
-		log.Println("Registrar handling values: ", in.GetValues())
-		if len(in.GetValues())%3 != 0 {
-			log.Println("register message has values that are not same length as records: ", in.Values)
-		} else if len(in.GetValues()) == 0 {
-			log.Println("no records to register in len 0 values")
-		} else {
-			log.Println("registering records: ", in.GetValues())
-			reg := state.(register)
-			for idx := 0; idx < len(in.GetValues()); idx += 3 {
-				reg.addRecords(NewRecord(in.GetValues()[idx], in.GetValues()[idx+1], core.Scope(in.GetValues()[idx+2])))
+	case core.Message_REGISTER:
+		switch in.GetSubtype() {
+		case core.Message_SET, core.Message_PUT:
+			log.Println("Registar handling REGISTER_[SET|PUT]")
+			log.Println("Registrar handling values: ", in.GetValues())
+			if len(in.GetValues())%3 != 0 {
+				log.Println("register message has values that are not same length as records: ", in.Values)
+			} else if len(in.GetValues()) == 0 {
+				log.Println("no records to register in len 0 values")
+			} else {
+				log.Println("registering records: ", in.GetValues())
+				reg := state.(register)
+				for idx := 0; idx < len(in.GetValues()); idx += 3 {
+					reg.addRecords(NewRecord(in.GetValues()[idx], in.GetValues()[idx+1], core.Scope(in.GetValues()[idx+2])))
+				}
+				log.Println("register: ", reg)
+				return core.Message{
+					Type:        core.Message_SIMPLE,
+					Description: "register",
+					Values:      []string{fmt.Sprintf("%d", len(in.GetValues())/3)},
+				}, reg
 			}
-			log.Println("register: ", reg)
+
+		case core.Message_GET:
+			// handle register of new genserver
+			log.Println("Registrar handling SIMPLE message")
+			log.Println("Registrar handling SIMPLE get for name: ", in.GetValues())
+			reg := state.(register)
+			records := reg.getRecords(in.GetValues()[0])
+			values := make([]string, 0)
+			for _, record := range records {
+				values = append(values, record.Name, record.Address, string(record.Scope))
+			}
 			return core.Message{
 				Type:        core.Message_SIMPLE,
-				Description: "register",
-				Values:      []string{fmt.Sprintf("%d", len(in.GetValues())/3)},
+				Description: "get",
+				Values:      values,
 			}, reg
+
+		default:
+			log.Println("unknonw register message: ", in)
+
 		}
-	case core.Message_REGISTER_GET:
-		// handle register of new genserver
-		log.Println("Registrar handling SIMPLE message")
-		log.Println("Registrar handling SIMPLE get for name: ", in.GetValues())
-		reg := state.(register)
-		records := reg.getRecords(in.GetValues()[0])
-		values := make([]string, 0)
-		for _, record := range records {
-			values = append(values, record.Name, record.Address, string(record.Scope))
-		}
-		return core.Message{
-			Type:        core.Message_SIMPLE,
-			Description: "get",
-			Values:      values,
-		}, reg
+
 	case core.Message_SYNC:
 		// handle syncing of other registrars
 		log.Println("Registrar SYNC recieved: ", in)
@@ -77,6 +87,7 @@ func NewRegistrar(scope core.Scope) *genserver.GenServer {
 
 type register struct {
 	recordmap map[string]map[string]Record
+	ticker    *time.Ticker
 }
 
 func newRegister() register {
@@ -115,7 +126,8 @@ func (r register) addRecords(records ...Record) register {
 func AddRecords(regaddr string, fromaddr string, records ...Record) bool {
 	log.Println("Registrar call to add records: ", records)
 	msg := core.Message{
-		Type:        core.Message_REGISTER_PUT,
+		Type:        core.Message_REGISTER,
+		Subtype:     core.Message_PUT,
 		Description: "register",
 		Values:      make([]string, 0),
 	}
@@ -149,7 +161,8 @@ func (r register) getRecords(name string) []Record {
 func GetRecords(regaddr string, fromaddr string, name string) []Record {
 	log.Println("Registrar call to get records with name: ", name)
 	msg := core.Message{
-		Type:        core.Message_REGISTER_GET,
+		Type:        core.Message_REGISTER,
+		Subtype:     core.Message_GET,
 		Description: "get",
 		Values:      []string{name},
 	}

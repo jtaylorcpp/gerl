@@ -27,14 +27,20 @@ message Message {
 	enum Type {
 		SIMPLE = 0;
 		SYNC = 1;
-		REGISTER_GET = 3;
-		REGISTER_SET = 4;
-		REGISTER_PUT = 5;
+		REGISTER = 2;
+	}
+	
+	enum SubType {
+		GET = 0;
+		SET = 1;
+		PUT = 2;
+		JOIN = 3;
 	}
 	
 	Type type = 1;
-	string description = 2;
-	repeated string values = 3;
+	SubType subtype = 2;
+	string description = 3;
+	repeated string values = 4;
 }
 
 message Health {
