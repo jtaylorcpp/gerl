@@ -3,7 +3,6 @@ package registrar
 import (
 	"log"
 	"testing"
-	"time"
 
 	"github.com/jtaylorcpp/gerl/core"
 	gs "github.com/jtaylorcpp/gerl/genserver"
@@ -53,23 +52,6 @@ func TestRegistrarPingPong(t *testing.T) {
 	gs1 := gs.NewGenServer("genserver 1", core.LocalScope, pingCall, defaultCast)
 	gs2 := gs.NewGenServer("genserver 2", core.GlobalScope, pongCall, defaultCast)
 	reg := NewRegistrar(core.LocalScope)
-
-	go func() {
-		t.Log(gs1.Start())
-	}()
-
-	go func() {
-		t.Log(gs2.Start())
-	}()
-
-	go func() {
-		t.Log(reg.Start())
-	}()
-
-	for !core.PidHealthCheck(gs1.Pid.GetAddr()) || !core.PidHealthCheck(gs2.Pid.GetAddr()) || !core.PidHealthCheck(reg.Pid.GetAddr()) {
-		time.Sleep(25 * time.Microsecond)
-		t.Log("waiting for genserver to start")
-	}
 
 	log.Println("ping server addr: ", gs1.Pid.GetAddr())
 	log.Println("pong server addr: ", gs2.Pid.GetAddr())

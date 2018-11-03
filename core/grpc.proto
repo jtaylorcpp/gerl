@@ -35,6 +35,7 @@ message Message {
 		SET = 1;
 		PUT = 2;
 		JOIN = 3;
+		REFRESH = 4;
 	}
 	
 	Type type = 1;

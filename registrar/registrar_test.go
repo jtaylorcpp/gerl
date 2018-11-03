@@ -6,21 +6,13 @@ import (
 	"time"
 
 	"github.com/jtaylorcpp/gerl/core"
+	"github.com/jtaylorcpp/gerl/genserver"
 )
 
 func TestRegistrar(t *testing.T) {
 	reg := NewRegistrar(core.GlobalScope)
 
 	t.Log("new registrar: ", reg)
-
-	go func() {
-		t.Log("error from registrar server: ", reg.Start())
-	}()
-
-	for !core.PidHealthCheck(reg.Pid.GetAddr()) {
-		time.Sleep(25 * time.Microsecond)
-		t.Log("waiting for registrar to start")
-	}
 
 	added := AddRecords(reg.Pid.GetAddr(), "local", Record{
 		Name:    "test",
@@ -45,39 +37,19 @@ func TestRegistrar(t *testing.T) {
 	}
 }
 
-func TestRegister(t *testing.T) {
-	rec := Record{
-		Name:    "test",
-		Address: "1.1.1.1",
-		Scope:   core.LocalScope,
-	}
+func TestRegistrarRefresh(t *testing.T) {
 
-	reg := newRegister()
+	REFRESH_TIMER = 100 * time.Millisecond
 
-	reg = reg.addRecords(rec)
+	reg1 := NewRegistrar(core.GlobalScope)
+	t.Log("new registrar: ", reg1)
+	reg2 := NewRegistrar(core.GlobalScope)
+	t.Log("new registrar: ", reg2)
 
-	if _, ok := reg.recordmap[rec.Name]; ok {
-		if rectest, ok2 := reg.recordmap[rec.Name][rec.Address]; ok2 {
-			if !reflect.DeepEqual(rec, rectest) {
-				t.Fatal("records not the same")
-			}
-		} else {
-			t.Fatal("record not found for addr: ", rec.Address)
-		}
-	} else {
-		t.Fatal("svc not in register: ", rec.Name, reg)
-	}
+	JoinRegistrar(genserver.FromAddr(reg1.Pid.GetAddr()),
+		genserver.PidAddr(reg2.Pid.GetAddr()))
 
-	getReg := reg.getRecords("test")
+	time.Sleep(1 * time.Second)
 
-	t.Log("got records: ", getReg)
-
-	if len(getReg) != 1 {
-		t.Fatal("did not get one record back")
-	}
-
-	if !reflect.DeepEqual(rec, getReg[0]) {
-
-	}
-
+	reg1.Terminate()
 }

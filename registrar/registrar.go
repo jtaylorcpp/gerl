@@ -9,9 +9,15 @@ import (
 	"github.com/jtaylorcpp/gerl/genserver"
 )
 
+var REFRESH_TIMER time.Duration
+
 type State genserver.State
 type CallHander genserver.GenServerCallHandler
 type CastHandler genserver.GenServerCastHandler
+
+func init() {
+	REFRESH_TIMER = 10 * time.Second
+}
 
 func registrarCallHander(pid core.Pid, in core.Message, from genserver.FromAddr, state genserver.State) (core.Message, genserver.State) {
 	log.Printf("Registrar call handler msg: <%v>\n", in)
@@ -61,8 +67,25 @@ func registrarCallHander(pid core.Pid, in core.Message, from genserver.FromAddr,
 		}
 
 	case core.Message_SYNC:
-		// handle syncing of other registrars
 		log.Println("Registrar SYNC recieved: ", in)
+		switch in.GetSubtype() {
+		case core.Message_JOIN:
+			log.Println("Registrar joining: ", in)
+			reg := state.(register)
+			if _, ok := reg.registrarmap[in.GetDescription()]; ok {
+				log.Println("Registrar already registered node: ", in.GetDescription())
+			} else {
+				reg.registrarmap[in.GetDescription()] = true
+			}
+			return core.Message{
+				Type:        core.Message_SYNC,
+				Subtype:     core.Message_JOIN,
+				Description: "registered",
+			}, reg
+		default:
+			log.Println("Registrar unhandled SYNC: ", in)
+		}
+
 	case core.Message_SIMPLE:
 		// handle simple messages
 		log.Println("Registrar SIMPLE recieved: ", in)
@@ -75,113 +98,80 @@ func registrarCallHander(pid core.Pid, in core.Message, from genserver.FromAddr,
 }
 
 func registrarCastHander(pid core.Pid, in core.Message, from genserver.FromAddr, state genserver.State) genserver.State {
+	log.Println("registrar handling cast message: ", in)
+
+	switch in.GetType() {
+	case core.Message_SYNC:
+		log.Println("recieved sync message: ", in)
+		switch in.GetSubtype() {
+		case core.Message_REFRESH:
+			reg := state.(register)
+			for node, _ := range reg.registrarmap {
+				if core.PidHealthCheck(node) {
+					log.Println("node is still available: ", node)
+				} else {
+					log.Println("node is no longer available: ", node)
+					delete(reg.registrarmap, node)
+				}
+			}
+
+			timer := time.NewTimer(REFRESH_TIMER)
+			go func() {
+				<-timer.C
+				genserver.Cast(genserver.PidAddr(pid.GetAddr()),
+					genserver.PidAddr(pid.GetAddr()),
+					core.Message{
+						Type:    core.Message_SYNC,
+						Subtype: core.Message_REFRESH,
+					},
+				)
+			}()
+		}
+
+	default:
+		log.Println("unknown call msg: ", in)
+
+	}
 
 	return state
 }
 
 func NewRegistrar(scope core.Scope) *genserver.GenServer {
 	gensvr := genserver.NewGenServer(newRegister(), scope, registrarCallHander, registrarCastHander)
+	go func() {
+		log.Println("registrar exited: ", gensvr.Start())
+		//gensvr.Terminate()
+	}()
+
+	for !core.PidHealthCheck(gensvr.Pid.GetAddr()) {
+		time.Sleep(10 * time.Millisecond)
+	}
+
+	genserver.Cast(genserver.PidAddr(gensvr.Pid.GetAddr()),
+		genserver.PidAddr(gensvr.Pid.GetAddr()),
+		core.Message{
+			Type:    core.Message_SYNC,
+			Subtype: core.Message_REFRESH,
+		},
+	)
 
 	return gensvr
 }
 
-type register struct {
-	recordmap    map[string]map[string]Record
-	registrarmap map[string]bool
-	ticker       *time.Ticker
-}
+func JoinRegistrar(from genserver.FromAddr, to genserver.PidAddr) bool {
+	msg := genserver.Call(to, from, core.Message{
+		Type:        core.Message_SYNC,
+		Subtype:     core.Message_JOIN,
+		Description: string(from),
+	})
 
-func newRegister() register {
-	return register{
-		recordmap:    make(map[string]map[string]Record),
-		registrarmap: make(map[string]bool),
-	}
-}
+	if (msg.GetType() == core.Message_SYNC) &&
+		(msg.GetSubtype() == core.Message_JOIN) &&
+		(msg.GetDescription() == "registered") {
+		log.Printf("registrar <%v> registered with registrar <%v>\n", from, to)
 
-type Record struct {
-	Name    string
-	Address string
-	Scope   core.Scope
-}
-
-func NewRecord(name, address string, scope core.Scope) Record {
-	return Record{
-		Name:    name,
-		Address: address,
-		Scope:   scope,
-	}
-}
-
-func (r register) addRecords(records ...Record) register {
-	log.Println("adding records to register: ", records)
-	for _, rec := range records {
-		log.Println("adding record: ", rec)
-		if _, svc := r.recordmap[rec.Name]; !svc {
-			log.Println("adding service: ", rec.Name)
-			r.recordmap[rec.Name] = make(map[string]Record)
-		}
-		r.recordmap[rec.Name][rec.Address] = rec
-		log.Println("record added: ", r)
-	}
-	log.Println("new register state: ", r)
-	return r
-}
-
-func AddRecords(regaddr string, fromaddr string, records ...Record) bool {
-	log.Println("Registrar call to add records: ", records)
-	msg := core.Message{
-		Type:        core.Message_REGISTER,
-		Subtype:     core.Message_PUT,
-		Description: "register",
-		Values:      make([]string, 0),
+		return true
 	}
 
-	for _, rec := range records {
-		msg.Values = append(msg.Values, rec.Name, rec.Address, string(rec.Scope))
-	}
-
-	log.Println("Adding records: ", msg.Values)
-
-	returnMsg := core.PidCall(regaddr, fromaddr, msg)
-
-	log.Println("recieved register message back: ", returnMsg)
-
-	return true
-}
-
-func (r register) getRecords(name string) []Record {
-	records := make([]Record, 0)
-	if namedRecords, ok := r.recordmap[name]; ok {
-		for _, record := range namedRecords {
-			records = append(records, record)
-		}
-
-		return records
-	}
-
-	return records
-}
-
-func GetRecords(regaddr string, fromaddr string, name string) []Record {
-	log.Println("Registrar call to get records with name: ", name)
-	msg := core.Message{
-		Type:        core.Message_REGISTER,
-		Subtype:     core.Message_GET,
-		Description: "get",
-		Values:      []string{name},
-	}
-
-	returnMsg := core.PidCall(regaddr, fromaddr, msg)
-
-	log.Println("recieved register message back: ", returnMsg)
-
-	records := make([]Record, 0)
-
-	values := returnMsg.GetValues()
-
-	for idx := 0; idx < len(values); idx += 3 {
-		records = append(records, NewRecord(values[idx], values[idx+1], core.Scope(values[idx+2])))
-	}
-
-	return records
+	return false
 }
