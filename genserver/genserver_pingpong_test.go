@@ -3,7 +3,6 @@ package genserver
 import (
 	"log"
 	"testing"
-	"time"
 
 	"github.com/jtaylorcpp/gerl/core"
 )
@@ -49,19 +48,6 @@ func pongCall(_ core.Pid, msg core.Message, fromaddr FromAddr, s State) (core.Me
 func TestGenServers(t *testing.T) {
 	gs1 := NewGenServer("genserver 1", core.LocalScope, pingCall, defaultCast)
 	gs2 := NewGenServer("genserver 2", core.GlobalScope, pongCall, defaultCast)
-
-	go func() {
-		t.Log(gs1.Start())
-	}()
-
-	go func() {
-		t.Log(gs2.Start())
-	}()
-
-	for !core.PidHealthCheck(gs1.Pid.GetAddr()) || !core.PidHealthCheck(gs2.Pid.GetAddr()) {
-		time.Sleep(25 * time.Microsecond)
-		t.Log("waiting for genserver to start")
-	}
 
 	PongAddr = PidAddr(gs2.Pid.GetAddr())
 

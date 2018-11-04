@@ -3,6 +3,7 @@ package genserver
 import (
 	"errors"
 	"log"
+	"time"
 
 	"github.com/jtaylorcpp/gerl/core"
 )
@@ -64,7 +65,7 @@ type GenServer struct {
 // takes in both the Call handler and Cast handler to be used in the main loop
 func NewGenServer(state State, scope core.Scope, call GenServerCallHandler, cast GenServerCastHandler) *GenServer {
 	log.Println("Initializing GenServer with state: ", state)
-	return &GenServer{
+	gensvr := &GenServer{
 		Pid:        &core.Pid{},
 		State:      state,
 		Scope:      scope,
@@ -73,6 +74,16 @@ func NewGenServer(state State, scope core.Scope, call GenServerCallHandler, cast
 		Errors:     make(chan error),
 		Terminated: make(chan bool),
 	}
+
+	go func() {
+		log.Println("genserver exited: ", gensvr.Start())
+	}()
+
+	for !core.PidHealthCheck(gensvr.Pid.GetAddr()) {
+		time.Sleep(10 * time.Millisecond)
+	}
+
+	return gensvr
 }
 
 // Starts the GenServer main loop in which messages are read from the

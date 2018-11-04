@@ -10,14 +10,6 @@ import (
 
 func TestGenServer(t *testing.T) {
 	genserver := NewGenServer("test state", core.LocalScope, CallTest, CastTest)
-	go func() {
-		t.Log("genserver start error ", genserver.Start())
-	}()
-
-	for !core.PidHealthCheck(genserver.Pid.GetAddr()) {
-		time.Sleep(25 * time.Microsecond)
-		t.Log("waiting for genserver to start")
-	}
 
 	msg1 := core.Message{
 		Type:        core.Message_SIMPLE,

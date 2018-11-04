@@ -59,9 +59,12 @@ func TestRegistrarPingPong(t *testing.T) {
 
 	REGADDR = string(reg.Pid.GetAddr())
 
-	if AddRecords(reg.Pid.GetAddr(), "localhost",
-		NewRecord("ping", gs1.Pid.GetAddr(), core.GlobalScope),
-		NewRecord("pong", gs2.Pid.GetAddr(), core.GlobalScope)) {
+	pingRec := NewRecord("ping", gs1.Pid.GetAddr(), core.GlobalScope)
+	t.Log("ping record to add: ", pingRec)
+	pongRec := NewRecord("pong", gs2.Pid.GetAddr(), core.GlobalScope)
+	t.Log("pong record to add:", pongRec)
+
+	if AddRecords(reg.Pid.GetAddr(), "localhost", pingRec, pongRec) {
 		t.Log("added ping and pong to registrar")
 	} else {
 		t.Fatal("ping and poing not added to registrar")

@@ -77,6 +77,10 @@ func registrarCallHander(pid core.Pid, in core.Message, from genserver.FromAddr,
 			} else {
 				reg.registrarmap[in.GetDescription()] = true
 			}
+			/*
+				TODO:
+				Add other synched nodes to message
+			*/
 			return core.Message{
 				Type:        core.Message_SYNC,
 				Subtype:     core.Message_JOIN,
@@ -138,14 +142,6 @@ func registrarCastHander(pid core.Pid, in core.Message, from genserver.FromAddr,
 
 func NewRegistrar(scope core.Scope) *genserver.GenServer {
 	gensvr := genserver.NewGenServer(newRegister(), scope, registrarCallHander, registrarCastHander)
-	go func() {
-		log.Println("registrar exited: ", gensvr.Start())
-		//gensvr.Terminate()
-	}()
-
-	for !core.PidHealthCheck(gensvr.Pid.GetAddr()) {
-		time.Sleep(10 * time.Millisecond)
-	}
 
 	genserver.Cast(genserver.PidAddr(gensvr.Pid.GetAddr()),
 		genserver.PidAddr(gensvr.Pid.GetAddr()),
