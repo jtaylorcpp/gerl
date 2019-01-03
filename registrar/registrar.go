@@ -103,13 +103,14 @@ func registrarCallHander(pid core.Pid, in core.Message, from genserver.FromAddr,
 
 func registrarCastHander(pid core.Pid, in core.Message, from genserver.FromAddr, state genserver.State) genserver.State {
 	log.Println("registrar handling cast message: ", in)
-
+	reg := state.(register)
 	switch in.GetType() {
 	case core.Message_SYNC:
 		log.Println("recieved sync message: ", in)
 		switch in.GetSubtype() {
 		case core.Message_REFRESH:
-			reg := state.(register)
+
+			log.Println("handling refresh with state: ", reg)
 			for node, _ := range reg.registrarmap {
 				if core.PidHealthCheck(node) {
 					log.Println("node is still available: ", node)
@@ -119,9 +120,23 @@ func registrarCastHander(pid core.Pid, in core.Message, from genserver.FromAddr,
 				}
 			}
 
+			for group, nodes := range reg.recordmap {
+				log.Println("checking availability for pid group: ", group)
+				for addr, _ := range nodes {
+					log.Printf("checking availability of pid %v in group %v\n", addr, group)
+					if core.PidHealthCheck(addr) {
+						log.Printf("pid %v in group %v still available\n", addr, group)
+					} else {
+						log.Printf("pid %v in group %v no longer available\n", addr, group)
+						delete(reg.recordmap[group], addr)
+					}
+				}
+			}
+
 			timer := time.NewTimer(REFRESH_TIMER)
 			go func() {
 				<-timer.C
+				log.Println("registrar sending keep alives")
 				genserver.Cast(genserver.PidAddr(pid.GetAddr()),
 					genserver.PidAddr(pid.GetAddr()),
 					core.Message{
@@ -137,7 +152,7 @@ func registrarCastHander(pid core.Pid, in core.Message, from genserver.FromAddr,
 
 	}
 
-	return state
+	return reg
 }
 
 func NewRegistrar(scope core.Scope) *genserver.GenServer {
