@@ -136,7 +136,7 @@ func registrarCastHander(pid core.Pid, in core.Message, from genserver.FromAddr,
 			timer := time.NewTimer(REFRESH_TIMER)
 			go func() {
 				<-timer.C
-				log.Println("registrar sending keep alives")
+				log.Println("registrar sending keep alive to self")
 				genserver.Cast(genserver.PidAddr(pid.GetAddr()),
 					genserver.PidAddr(pid.GetAddr()),
 					core.Message{
@@ -158,6 +158,19 @@ func registrarCastHander(pid core.Pid, in core.Message, from genserver.FromAddr,
 func NewRegistrar(scope core.Scope) *genserver.GenServer {
 	gensvr := genserver.NewGenServer(newRegister(), scope, registrarCallHander, registrarCastHander)
 
+	genserver.Cast(genserver.PidAddr(gensvr.Pid.GetAddr()),
+		genserver.PidAddr(gensvr.Pid.GetAddr()),
+		core.Message{
+			Type:    core.Message_SYNC,
+			Subtype: core.Message_REFRESH,
+		},
+	)
+
+	return gensvr
+}
+
+func NewRegistrarWithPort(scope core.Scope, port string) *genserver.GenServer {
+	gensvr := genserver.NewGenServerWithPort(newRegister(), scope, port, registrarCallHander, registrarCastHander)
 	genserver.Cast(genserver.PidAddr(gensvr.Pid.GetAddr()),
 		genserver.PidAddr(gensvr.Pid.GetAddr()),
 		core.Message{

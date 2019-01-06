@@ -86,6 +86,31 @@ func NewGenServer(state State, scope core.Scope, call GenServerCallHandler, cast
 	return gensvr
 }
 
+// Initializes the GenServer with the intial state and port
+// takes in both the Call handler and Cast handler to be used in the main loop
+func NewGenServerWithPort(state State, scope core.Scope, port string, call GenServerCallHandler, cast GenServerCastHandler) *GenServer {
+	log.Println("Initializing GenServer with state: ", state)
+	gensvr := &GenServer{
+		Pid:        &core.Pid{},
+		State:      state,
+		Scope:      scope,
+		CustomCall: call,
+		CustomCast: cast,
+		Errors:     make(chan error),
+		Terminated: make(chan bool),
+	}
+
+	go func() {
+		log.Println("genserver exited: ", gensvr.StartWithPort(port))
+	}()
+
+	for !core.PidHealthCheck(gensvr.Pid.GetAddr()) {
+		time.Sleep(10 * time.Millisecond)
+	}
+
+	return gensvr
+}
+
 // Starts the GenServer main loop in which messages are read from the
 // "inbox" and then passed to either the CallHandler or the CastHandler.
 // This main loop is ran in a go-routine in which when the "inbox" is closed
@@ -139,9 +164,6 @@ func (gs *GenServer) start(port string) error {
 			default:
 				log.Println("genserver recieved unknown type: ", msg.GetType())
 			}
-		default:
-			continue
-			//log.Println("genserver no matching cases")
 		}
 	}
 
