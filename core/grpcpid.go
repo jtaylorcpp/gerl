@@ -189,6 +189,7 @@ func NewPid(address, port string, scope Scope) *Pid {
 		}
 	}()
 
+	log.Println("pid started at: ", npid.GetAddr())
 	return npid
 }
 

@@ -4,17 +4,17 @@ import (
 	"errors"
 	"log"
 
-	"github.com/jtaylorcpp/gerl/core"
+	"gerl/core"
 )
 
-type PidAddr string
-type FromAddr string
+type PidAddr = string
+type FromAddr = string
 type Inbox chan core.GerlMsg
 
 // Handler started as a go-routine to process incoming messages
 type ProcHandler func(PidAddr, Inbox) error
 
-// Process is the struct designed to be a single threaded, concurrent loop
+// Process is the struct designed to be a single threaded loop
 // to process core.GerlMsg
 type Process struct {
 	// Pid use to communicate with the Process
@@ -48,7 +48,7 @@ func (p *Process) Start() error {
 
 	log.Println("Process available at addr: ", p.Pid.GetAddr())
 
-	in := make(Inbox, 32)
+	in := make(Inbox, 1)
 
 	go func() {
 		p.Errors <- p.Handler(PidAddr(p.Pid.GetAddr()), in)
@@ -77,10 +77,8 @@ func (p *Process) Start() error {
 				log.Println("process recieved proc message")
 				in <- msg
 			default:
-				log.Println("process recieved unknonw type")
+				log.Println("process recieved unknown type")
 			}
-		default:
-			continue
 		}
 	}
 
@@ -106,5 +104,5 @@ func (p *Process) Terminate() {
 
 // Send sends an arbitrary core.Message to a Process at PidAddr
 func Send(to PidAddr, from FromAddr, msg core.Message) {
-	core.PidSendProc(string(to), string(from), msg)
+	core.PidSendProc(to, from, msg)
 }

@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/jtaylorcpp/gerl/core"
+	"gerl/core"
 )
 
 var SetValue string
@@ -16,10 +16,11 @@ func TestProcess(t *testing.T) {
 			msg, ok := <-in
 			if !ok {
 				t.Log("inbox closed")
+				break
 			}
-			t.Log("recieved desc: ", msg.GetMsg().GetDescription())
-			if msg.GetMsg().GetDescription() != SetValue {
-				t.Fatalf("msg value<%v> not equal to <%v>\n", msg.GetMsg().GetDescription(), SetValue)
+			t.Log("recieved: ", string(msg.GetMsg().GetRawMsg()))
+			if string(msg.GetMsg().GetRawMsg()) != SetValue {
+				t.Fatalf("msg value<%v> not equal to <%v>\n", string(msg.GetMsg().GetRawMsg()), SetValue)
 				return errors.New("not the set value")
 			}
 		}
@@ -33,6 +34,7 @@ func TestProcess(t *testing.T) {
 		t.Log(proc.Start())
 	}()
 
+	time.Sleep(25 * time.Millisecond)
 	t.Log("process started with pid: ", proc.Pid.GetAddr())
 
 	time.Sleep(25 * time.Millisecond)
@@ -40,12 +42,10 @@ func TestProcess(t *testing.T) {
 	SetValue = "test1"
 
 	Send(PidAddr(proc.Pid.GetAddr()), "localhost", core.Message{
-		Type:        core.Message_SIMPLE,
-		Description: SetValue,
+		RawMsg: []byte(SetValue),
 	})
 
 	time.Sleep(50 * time.Millisecond)
 
 	proc.Terminate()
-
 }
