@@ -22,7 +22,7 @@ var GlobalIP string
 var MessageTimeout time.Duration
 var HealthTimeout time.Duration
 
-type Scope byte
+type Scope = byte
 
 const (
 	LocalScope  Scope = 0x01
@@ -32,7 +32,6 @@ const (
 // initializes the pid environment
 //  - IPAddress to bind all pids to
 func init() {
-
 	MessageTimeout = 50 * time.Millisecond
 	HealthTimeout = 50 * time.Millisecond
 }
@@ -118,35 +117,48 @@ func (p *Pid) RUOK(ctx context.Context, _ *Empty) (*Health, error) {
 }
 
 // Generates new Pid to use by process in Gerl
+// If address is empty an address based on scope is assigned
+// If port is left empty a random one will be used
 func NewPid(address, port string, scope Scope) *Pid {
 	// error chan to elevate to process using pid
 	Errors := make(chan error, 10)
 
 	// get default addresses to use
 	var ipaddress string
-	switch scope {
-	case LocalScope:
-		ipaddress = localIP
-	case GlobalScope:
-		if GlobalIP == "" {
-			ipaddress = getPublicIP()
-		} else {
-			ipaddress = GlobalIP
+	if address == "" {
+		ipaddress = address
+	} else {
+		switch scope {
+		case LocalScope:
+			ipaddress = localIP
+		case GlobalScope:
+			if GlobalIP == "" {
+				ipaddress = getPublicIP()
+			} else {
+				ipaddress = GlobalIP
+			}
 		}
-	}
-	// if port is unset use 0
-	ipport := "0"
-	if port != "" {
-		ipport = port
 	}
 
 	// generate tcp listener
 	// no ip address will use 0.0.0.0
 	// no port number(string) will result in one being assigned
-	lis, err := net.Listen("tcp", fmt.Sprintf("%s:%s", ipaddress, ipport))
+	lis, err := net.Listen("tcp", fmt.Sprintf("%s:%s", ipaddress, port))
 	if err != nil {
+		log.Println("error genreating listener: ", err.Error())
 		Errors <- err
 	}
+
+	if lis == nil {
+		log.Println("generated listener is nil")
+		Errors <- errors.New("pid listener is nil")
+	}
+
+	if lis.Addr() == nil {
+		log.Println("generated listener addr is nil")
+		Errors <- errors.New("pid listener addr is nil")
+	}
+
 
 	// new grpc server constructor
 	grpcServer := grpc.NewServer()
@@ -154,9 +166,9 @@ func NewPid(address, port string, scope Scope) *Pid {
 	// create pid to return
 	npid := &Pid{
 		Listener: lis,
-		Addr:     lis.Addr().(*net.TCPAddr).String(),
-		Inbox:    make(chan GerlMsg, 8),
-		Outbox:   make(chan GerlMsg, 8),
+		Addr:     lis.Addr().String(),
+		Inbox:    make(chan GerlMsg, 1),
+		Outbox:   make(chan GerlMsg, 1),
 		Errors:   Errors,
 		Server:   grpcServer,
 		LisTerm:  make(chan bool, 1),
@@ -219,7 +231,7 @@ func newClient(pidAddress string) (*grpc.ClientConn, GerlMessagerClient) {
 }
 
 // Sends a Call message to the Pid from a Message struct
-// Constructs both the client and GerlMessagee needed
+// Constructs both the client and GerlMessage needed
 func PidCall(toaddr string, fromaddr string, msg Message) Message {
 	conn, client := newClient(toaddr)
 	defer conn.Close()

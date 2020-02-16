@@ -24,12 +24,7 @@ message GerlMsg {
 }
 
 message Message {
-	enum Type {
-		SIMPLE = 0;
-	}
-	
-	Type type = 1;
-	string description = 2;
+	 bytes rawMsg = 1;
 }
 
 message Health {

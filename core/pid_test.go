@@ -14,8 +14,7 @@ func TestCall(t *testing.T) {
 	pid := NewPid("", "", LocalScope)
 
 	testMsg := Message{
-		Type:        Message_SIMPLE,
-		Description: "call test",
+		RawMsg: []byte("call test"),
 	}
 
 	testGerl := GerlMsg{
@@ -28,26 +27,22 @@ func TestCall(t *testing.T) {
 
 	returnMsg := PidCall(pid.GetAddr(), "calladdr", testMsg)
 
-	t.Log("message sent to call: ", testMsg)
-	t.Log("message returned by call: ", returnMsg)
+	t.Logf("message sent to call: %#v\n", testMsg)
+	t.Logf("message returned by call:%#v\n", returnMsg)
 
 	if reflect.DeepEqual(testGerl, <-pid.Inbox) {
 		t.Fatal("message sent to inbox not the same")
 	}
 
-	if (testMsg.Description != returnMsg.Description) || (testMsg.Type != returnMsg.Type) {
-		t.Fatal("message description and type are not equal")
-	}
-
 	pid.Terminate()
 }
+
 
 func BenchmarkCall(b *testing.B) {
 	pid := NewPid("", "", LocalScope)
 
 	testMsg := Message{
-		Type:        Message_SIMPLE,
-		Description: "call test",
+		RawMsg: []byte("call test"),
 	}
 
 	testGerl := GerlMsg{
@@ -71,12 +66,12 @@ func BenchmarkCall(b *testing.B) {
 	pid.Terminate()
 }
 
+
 func TestCast(t *testing.T) {
 	pid := NewPid("", "", LocalScope)
 
 	testMsg := Message{
-		Type:        Message_SIMPLE,
-		Description: "cast test",
+		RawMsg: []byte("cast test"),
 	}
 
 	testGerl := GerlMsg{
