@@ -9,17 +9,17 @@ import (
 	"gerl/core"
 )
 
-func TestGenServerCallHandlerParsing(t *testing.T){
+func TestGenServerCallHandlerParsing(t *testing.T) {
 	handler, err := newCustomCallHandler(CallTest)
 	if err != nil {
 		t.Fatal(err.Error())
 	}
 
-	testMsg := TestMessage {
+	testMsg := TestMessage{
 		Body: "hello world",
 	}
 
-	testState := TestState {
+	testState := TestState{
 		Some: "details",
 	}
 
@@ -45,7 +45,122 @@ func TestGenServerCallHandlerParsing(t *testing.T){
 	if returnedMsg.Body != testMsg.Body {
 		t.Fatal("returned message is not equal to sent message")
 	}
+
+	_, err = newCustomCallHandler(func(){})
+	if err == nil {
+		t.Fatal("this func is not right and should have errored out")
+	}
+
+	t.Log(err.Error())
+
+	_, err = newCustomCallHandler(func(a,b,c,d int)(int,int){return 0,0})
+	if err == nil {
+		t.Fatal("this func is not right and should have errored out")
+	}
+	t.Log(err.Error())
+
+	_, err = newCustomCallHandler(func(_ core.Pid, b,c,d int)(int,int){return 0,0})
+	if err == nil {
+		t.Fatal("this func is not right and should have errored out")
+	}
+	t.Log(err.Error())
+
+	_, err = newCustomCallHandler(func(_ core.Pid, _ struct{},c,d int)(int,int){return 0,0})
+	if err == nil {
+		t.Fatal("this func is not right and should have errored out")
+	}
+	t.Log(err.Error())
+
+	_, err = newCustomCallHandler(func(_ core.Pid, _ struct{},_ string,d int)(int,int){return 0,0})
+	if err == nil {
+		t.Fatal("this func is not right and should have errored out")
+	}
+	t.Log(err.Error())
+
+	_, err = newCustomCallHandler(func(_ core.Pid, _ struct{},_ string, _ struct{})(int,int){return 0,0})
+	if err == nil {
+		t.Fatal("this func is not right and should have errored out")
+	}
+	t.Log(err.Error())
+
+	_, err = newCustomCallHandler(func(_ core.Pid, _ struct{},_ string, _ struct{})(struct{},int){return struct{}{},0})
+	if err == nil {
+		t.Fatal("this func is not right and should have errored out")
+	}
+	t.Log(err.Error())
 }
+
+func TestGenServerCastHandlerParsing(t *testing.T) {
+	handler, err := newCustomCastHandler(CastTest)
+	if err != nil {
+		t.Fatal(err.Error())
+	}
+
+	testMsg := TestMessage{
+		Body: "hello world",
+	}
+
+	testState := TestState{
+		Some: "details",
+	}
+
+	rawMsg, err := json.Marshal(&testMsg)
+	if err != nil {
+		t.Fatal(err.Error())
+	}
+
+	rState := handler(core.Pid{}, rawMsg, "", testState)
+
+	stateAssert := rState.(TestState)
+
+	if stateAssert.Some != testState.Some {
+		t.Fatal("state returned is not equal")
+	}
+
+	_, err = newCustomCallHandler(func(){})
+	if err == nil {
+		t.Fatal("this func is not right and should have errored out")
+	}
+
+	t.Log(err.Error())
+
+	_, err = newCustomCallHandler(func(a,b,c,d int)(int,int){return 0,0})
+	if err == nil {
+		t.Fatal("this func is not right and should have errored out")
+	}
+	t.Log(err.Error())
+
+	_, err = newCustomCallHandler(func(_ core.Pid, b,c,d int)(int,int){return 0,0})
+	if err == nil {
+		t.Fatal("this func is not right and should have errored out")
+	}
+	t.Log(err.Error())
+
+	_, err = newCustomCallHandler(func(_ core.Pid, _ struct{},c,d int)(int,int){return 0,0})
+	if err == nil {
+		t.Fatal("this func is not right and should have errored out")
+	}
+	t.Log(err.Error())
+
+	_, err = newCustomCallHandler(func(_ core.Pid, _ struct{},_ string,d int)(int,int){return 0,0})
+	if err == nil {
+		t.Fatal("this func is not right and should have errored out")
+	}
+	t.Log(err.Error())
+
+	_, err = newCustomCallHandler(func(_ core.Pid, _ struct{},_ string, _ struct{})(int,int){return 0,0})
+	if err == nil {
+		t.Fatal("this func is not right and should have errored out")
+	}
+	t.Log(err.Error())
+
+	_, err = newCustomCallHandler(func(_ core.Pid, _ struct{},_ string, _ struct{})(struct{},int){return struct{}{},0})
+	if err == nil {
+		t.Fatal("this func is not right and should have errored out")
+	}
+	t.Log(err.Error())
+}
+
 /*func TestGenServer(t *testing.T) {
 	genserver := NewGenServer("test state", core.LocalScope, CallTest, CastTest)
 	go func() {
@@ -89,8 +204,7 @@ func CallTest(_ core.Pid, msg TestMessage, _ FromAddr, s TestState) (TestMessage
 	return msg, s
 }
 
-func CastTest(_ core.Pid, msg TestMessage, _ FromAddr, s State) State {
+func CastTest(_ core.Pid, msg TestMessage, _ FromAddr, s TestState) TestState {
 	log.Println("cast test func called")
-	return State(s.(string) + " cast")
+	return s
 }
-

@@ -1,11 +1,11 @@
 package genserver
 
 import (
-	"errors"
-	"log"
 	"encoding/json"
-	"reflect"
+	"errors"
 	"fmt"
+	"log"
+	"reflect"
 
 	"gerl/core"
 )
@@ -34,6 +34,7 @@ type GenericServer interface {
 // GenServerCustomCall acts like HTTP middleware and is wrapped inside the
 // GenericServer.CallHandler of the GenServer.
 type GenServerCallHandler func(core.Pid, Message, FromAddr, State) (Message, State)
+
 func newCustomCallHandler(handlerFunc interface{}) (GenServerCallHandler, error) {
 	if handlerFunc == nil {
 		return nil, errors.New("call handler is nil")
@@ -52,8 +53,6 @@ func newCustomCallHandler(handlerFunc interface{}) (GenServerCallHandler, error)
 		return nil, errors.New("call handler does not take 4 arguments")
 	}
 
-	
-
 	pidType := reflect.TypeOf(&core.Pid{}).Elem()
 	arg0Type := handlerType.In(0)
 	if pidType != arg0Type {
@@ -64,8 +63,8 @@ func newCustomCallHandler(handlerFunc interface{}) (GenServerCallHandler, error)
 		return nil, errors.New(fmt.Sprintf("call handler param 1 (type: %s) should implement type struct", handlerType.In(1).Kind()))
 	}
 
-	stringType:= reflect.TypeOf((*string)(nil)).Elem()
-	
+	stringType := reflect.TypeOf((*string)(nil)).Elem()
+
 	if handlerType.In(2) != stringType {
 		return nil, errors.New(fmt.Sprintf("call handler param 2 (type: %s) should implement type FromAddr(string)", handlerType.In(2).Kind()))
 	}
@@ -74,7 +73,6 @@ func newCustomCallHandler(handlerFunc interface{}) (GenServerCallHandler, error)
 		return nil, errors.New(fmt.Sprintf("call handler param 3 (type: %s) should implement type struct", handlerType.In(3).Kind()))
 	}
 
-	
 	if handlerType.NumOut() != 2 {
 		return nil, errors.New("call handler does not output 2 parameters")
 	}
@@ -82,14 +80,14 @@ func newCustomCallHandler(handlerFunc interface{}) (GenServerCallHandler, error)
 	if handlerType.Out(0).Kind() != reflect.Struct {
 		return nil, errors.New(fmt.Sprintf("call handler output param 0 (type: %s) should implement type struct", handlerType.Out(0).Kind()))
 	}
-	
-	stateType := reflect.TypeOf(handlerType.In(3)).Elem()
-	out1Type := reflect.TypeOf(handlerType.Out(1)).Elem()
+
+	stateType := handlerType.In(3)
+	out1Type := handlerType.Out(1)
 	if stateType != out1Type {
-		return nil, errors.New(fmt.Sprintf("call handler does not use same type for input (type: %s) and output (type: %s) states",stateType, out1Type))
+		return nil, errors.New(fmt.Sprintf("call handler does not use same type for input (type: %s) and output (type: %s) states", stateType, out1Type))
 	}
 
-	returnFunc := GenServerCallHandler(func(pid core.Pid, msg Message, faddr FromAddr, s State)(Message, State){
+	returnFunc := GenServerCallHandler(func(pid core.Pid, msg Message, faddr FromAddr, s State) (Message, State) {
 		// args from original func
 
 		var args []reflect.Value
@@ -120,22 +118,95 @@ func newCustomCallHandler(handlerFunc interface{}) (GenServerCallHandler, error)
 			log.Fatal("unable to marshal returned message")
 		}
 
-		
-		
-
 		return returnMsg, response[1].Interface()
 	})
 
 	return returnFunc, nil
 }
 
-
 // GenServerCustomCasr acts like HTTP middleware and is wrapped inside the
 // GenericServer.CastHandler of the GenServer.
 type GenServerCastHandler func(core.Pid, Message, FromAddr, State) State
-func newCustomCastHandler(handler interface{}) GenServerCastHandler {
-	return nil
-} 
+
+func newCustomCastHandler(handlerFunc interface{}) (GenServerCastHandler, error) {
+	if handlerFunc == nil {
+		return nil, errors.New("call handler is nil")
+	}
+
+	handler := reflect.ValueOf(handlerFunc)
+
+	// validate func signature
+	handlerType := reflect.TypeOf(handlerFunc)
+
+	if handlerType.Kind() != reflect.Func {
+		return nil, errors.New("call handler is not a func")
+	}
+
+	if handlerType.NumIn() != 4 {
+		return nil, errors.New("call handler does not take 4 arguments")
+	}
+
+	pidType := reflect.TypeOf(&core.Pid{}).Elem()
+	arg0Type := handlerType.In(0)
+	if pidType != arg0Type {
+		return nil, errors.New(fmt.Sprintf("call handler param 0 (type: %s) should implement type %s", arg0Type, pidType))
+	}
+
+	if handlerType.In(1).Kind() != reflect.Struct {
+		return nil, errors.New(fmt.Sprintf("call handler param 1 (type: %s) should implement type struct", handlerType.In(1).Kind()))
+	}
+
+	stringType := reflect.TypeOf((*string)(nil)).Elem()
+
+	if handlerType.In(2) != stringType {
+		return nil, errors.New(fmt.Sprintf("call handler param 2 (type: %s) should implement type FromAddr(string)", handlerType.In(2).Kind()))
+	}
+
+	if handlerType.In(3).Kind() != reflect.Struct {
+		return nil, errors.New(fmt.Sprintf("call handler param 3 (type: %s) should implement type struct", handlerType.In(3).Kind()))
+	}
+
+	if handlerType.NumOut() != 1 {
+		return nil, errors.New("call handler does not output 1 parameter")
+	}
+
+	stateType := handlerType.In(3)
+	out0Type := handlerType.Out(0)
+	if stateType != out0Type {
+		return nil, errors.New(fmt.Sprintf("call handler does not use same type for input (type: %s) and output (type: %s) states", stateType, out0Type))
+	}
+
+	returnFunc := GenServerCastHandler(func(pid core.Pid, msg Message, faddr FromAddr, s State) State {
+		// args from original func
+
+		var args []reflect.Value
+
+		// arg 0 is always Pid
+		args = append(args, reflect.ValueOf(pid))
+
+		// arg 1 is defined message
+		msgStruct := reflect.New(handlerType.In(1))
+		if err := json.Unmarshal(msg, msgStruct.Interface()); err != nil {
+			log.Fatal("unable to unmarshal message into struct: ", handlerType.In(1).Elem())
+		}
+
+		args = append(args, msgStruct.Elem())
+
+		// arg 2 is the FromAddr
+		args = append(args, reflect.ValueOf(faddr))
+
+		// arg3 is the state struct
+		args = append(args, reflect.ValueOf(s))
+
+		response := handler.Call(args)
+
+		// response needs to be converted to state
+
+		return response[0].Interface()
+	})
+
+	return returnFunc, nil
+}
 
 // GenServer is an implementation of the GenericServer.
 // It serves both as a reference implemntation and
@@ -166,7 +237,7 @@ type GenServer struct {
 // takes in both the Call handler and Cast handler to be used in the main loop
 // call must be a func with a signature of: func(core.Pid, StructIn, FromAddr, StructState) (StructOut, StructState)
 // cast must be a func with a signature of: func(core.Pid, StructIn, FromAddr, StructState) StructState
-func NewGenServer(state State, scope core.Scope, call , cast interface{}) *GenServer {
+func NewGenServer(state State, scope core.Scope, call, cast interface{}) *GenServer {
 	log.Println("Initializing GenServer with state: ", state)
 	log.Println("Initializing Call Handler")
 	callHandler, err := newCustomCallHandler(call)
@@ -175,7 +246,7 @@ func NewGenServer(state State, scope core.Scope, call , cast interface{}) *GenSe
 	}
 
 	log.Println("Initializing Cast Hander")
-	castHandler := newCustomCastHandler(cast)
+	castHandler, _ := newCustomCastHandler(cast)
 	return &GenServer{
 		Pid:        &core.Pid{},
 		State:      state,
@@ -224,7 +295,7 @@ func (gs *GenServer) Start() error {
 				gs.Pid.Outbox <- core.GerlMsg{
 					Type:     core.GerlMsg_CALL,
 					Fromaddr: gs.Pid.GetAddr(),
-					Msg:      &core.Message{
+					Msg: &core.Message{
 						RawMsg: rawMsg,
 					},
 				}
