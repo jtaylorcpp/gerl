@@ -3,12 +3,50 @@ package genserver
 import (
 	"log"
 	"testing"
-	"time"
+	//"time"
+	"encoding/json"
 
-	"github.com/jtaylorcpp/gerl/core"
+	"gerl/core"
 )
 
-func TestGenServer(t *testing.T) {
+func TestGenServerCallHandlerParsing(t *testing.T){
+	handler, err := newCustomCallHandler(CallTest)
+	if err != nil {
+		t.Fatal(err.Error())
+	}
+
+	testMsg := TestMessage {
+		Body: "hello world",
+	}
+
+	testState := TestState {
+		Some: "details",
+	}
+
+	rawMsg, err := json.Marshal(&testMsg)
+	if err != nil {
+		t.Fatal(err.Error())
+	}
+
+	rMsg, rState := handler(core.Pid{}, rawMsg, "", testState)
+
+	stateAssert := rState.(TestState)
+
+	if stateAssert.Some != testState.Some {
+		t.Fatal("state returned is not equal")
+	}
+
+	returnedMsg := &TestMessage{}
+	err = json.Unmarshal(rMsg, returnedMsg)
+	if err != nil {
+		t.Fatal(err.Error())
+	}
+
+	if returnedMsg.Body != testMsg.Body {
+		t.Fatal("returned message is not equal to sent message")
+	}
+}
+/*func TestGenServer(t *testing.T) {
 	genserver := NewGenServer("test state", core.LocalScope, CallTest, CastTest)
 	go func() {
 		t.Log("genserver start error ", genserver.Start())
@@ -36,13 +74,23 @@ func TestGenServer(t *testing.T) {
 	genserver.Terminate()
 
 }
+*/
 
-func CallTest(_ core.Pid, msg core.Message, _ FromAddr, s State) (core.Message, State) {
-	log.Println("call test func called")
-	return msg, State(s.(string) + " call")
+type TestMessage struct {
+	Body string
 }
 
-func CastTest(_ core.Pid, msg core.Message, _ FromAddr, s State) State {
+type TestState struct {
+	Some string
+}
+
+func CallTest(_ core.Pid, msg TestMessage, _ FromAddr, s TestState) (TestMessage, TestState) {
+	log.Println("call test func called")
+	return msg, s
+}
+
+func CastTest(_ core.Pid, msg TestMessage, _ FromAddr, s State) State {
 	log.Println("cast test func called")
 	return State(s.(string) + " cast")
 }
+
