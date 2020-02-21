@@ -32,7 +32,7 @@ const (
 // initializes the pid environment
 //  - IPAddress to bind all pids to
 func init() {
-	MessageTimeout = 50 * time.Millisecond
+	MessageTimeout = 500 * time.Millisecond
 	HealthTimeout = 50 * time.Millisecond
 }
 
@@ -119,9 +119,9 @@ func (p *Pid) RUOK(ctx context.Context, _ *Empty) (*Health, error) {
 // Generates new Pid to use by process in Gerl
 // If address is empty an address based on scope is assigned
 // If port is left empty a random one will be used
-func NewPid(address, port string, scope Scope) *Pid {
+func NewPid(address, port string, scope Scope) (*Pid, error) {
 	// error chan to elevate to process using pid
-	Errors := make(chan error, 10)
+	Errors := make(chan error, 1)
 
 	// get default addresses to use
 	var ipaddress string
@@ -146,17 +146,17 @@ func NewPid(address, port string, scope Scope) *Pid {
 	lis, err := net.Listen("tcp", fmt.Sprintf("%s:%s", ipaddress, port))
 	if err != nil {
 		log.Println("error genreating listener: ", err.Error())
-		Errors <- err
+		return nil, err
 	}
 
 	if lis == nil {
 		log.Println("generated listener is nil")
-		Errors <- errors.New("pid listener is nil")
+		return nil,  errors.New("pid listener is nil")
 	}
 
 	if lis.Addr() == nil {
 		log.Println("generated listener addr is nil")
-		Errors <- errors.New("pid listener addr is nil")
+		return nil, errors.New("pid listener addr is nil")
 	}
 
 
@@ -183,14 +183,14 @@ func NewPid(address, port string, scope Scope) *Pid {
 	go func() {
 		if err := grpcServer.Serve(lis); err != nil {
 			npid.Errors <- err
-			npid.LisTerm <- true
+			npid.LisTerm <- false
 		} else {
 			npid.LisTerm <- true
 		}
 	}()
 
 	log.Println("pid started at: ", npid.GetAddr())
-	return npid
+	return npid, nil
 }
 
 // Getter for address in format ip:port
@@ -199,19 +199,31 @@ func (p Pid) GetAddr() string {
 }
 
 // Terminates the Pid and closes all of the Pid side components
-func (p *Pid) Terminate() {
+func (p *Pid) Terminate() error {
 	log.Printf("Pid <%v> terminating\n", p)
+	log.Println("closing inbox")
+	close(p.Inbox)
+	log.Println("closing grpc listner")
+	p.Server.GracefulStop()
 	log.Println("closing listener")
 	p.Listener.Close()
 	log.Println("closing grpc server")
 	p.Server.Stop()
 	log.Println("closing channels")
-	close(p.Inbox)
-	p.Errors <- errors.New("pid terminated")
 	// blocking since the listener close out may generate an error
-	<-p.LisTerm
+	if !<-p.LisTerm {
+		log.Println("pid tcp listener did not close out cleanly")
+		switch len(p.Errors) {
+		case 0:
+			return errors.New("unkown issue with closing tcp listner")
+		default:
+			return <-p.Errors
+		}
+	}
+	close(p.LisTerm)
 	close(p.Errors)
 	log.Printf("pid<%v> terminated\n", p)
+	return nil
 }
 
 // Creates GRPC client with only an address string

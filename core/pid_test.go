@@ -11,7 +11,10 @@ func TestIPSelection(t *testing.T) {
 }
 
 func TestCall(t *testing.T) {
-	pid := NewPid("", "", LocalScope)
+	pid, err := NewPid("", "", LocalScope)
+	if err != nil {
+		t.Fatal(err.Error())
+	}
 
 	testMsg := Message{
 		RawMsg: []byte("call test"),
@@ -39,7 +42,10 @@ func TestCall(t *testing.T) {
 
 
 func BenchmarkCall(b *testing.B) {
-	pid := NewPid("", "", LocalScope)
+	pid, err := NewPid("", "", LocalScope)
+	if err != nil {
+		b.Fatal(err.Error())
+	}
 
 	testMsg := Message{
 		RawMsg: []byte("call test"),
@@ -68,7 +74,10 @@ func BenchmarkCall(b *testing.B) {
 
 
 func TestCast(t *testing.T) {
-	pid := NewPid("", "", LocalScope)
+	pid, err := NewPid("", "", LocalScope)
+	if err != nil {
+		t.Fatal(err.Error())
+	}
 
 	testMsg := Message{
 		RawMsg: []byte("cast test"),
@@ -94,7 +103,10 @@ func TestCast(t *testing.T) {
 }
 
 func TestHealth(t *testing.T) {
-	pid := NewPid("", "", LocalScope)
+	pid,err := NewPid("", "", LocalScope)
+	if err != nil {
+		t.Fatal(err.Error())
+	}
 	addr := pid.GetAddr()
 
 	health := PidHealthCheck(addr)
@@ -117,7 +129,10 @@ func TestHealth(t *testing.T) {
 }
 
 func TestHealthPublic(t *testing.T) {
-	pid := NewPid("", "", GlobalScope)
+	pid, err := NewPid("", "", GlobalScope)
+	if err != nil {
+		t.Fatal(err.Error())
+	}
 	addr := pid.GetAddr()
 
 	health := PidHealthCheck(addr)
@@ -141,7 +156,10 @@ func TestHealthPublic(t *testing.T) {
 
 func BenchmarkHealth(b *testing.B) {
 	for i := 0; i < b.N; i++ {
-		pid := NewPid("", "", LocalScope)
+		pid, err := NewPid("", "", LocalScope)
+		if err != nil {
+			b.Fatal(err.Error())
+		}
 
 		for {
 			health := PidHealthCheck(pid.GetAddr())

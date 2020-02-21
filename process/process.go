@@ -41,10 +41,13 @@ func New(scope core.Scope, handler ProcHandler) *Process {
 
 // Starts a process which is blocking until an error is reported.
 // The main thread processes all incoming Ccore.GerlMsg, and errors from both the
-// Process and Pid. All errors recieved immediately return and error.
+// Process and Pid.
 func (p *Process) Start() error {
-
-	p.Pid = core.NewPid("", "", p.Scope)
+	var err error
+	p.Pid, err = core.NewPid("", "", p.Scope)
+	if err != nil {
+		return err
+	}
 
 	log.Println("Process available at addr: ", p.Pid.GetAddr())
 

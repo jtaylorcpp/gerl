@@ -161,35 +161,52 @@ func TestGenServerCastHandlerParsing(t *testing.T) {
 	t.Log(err.Error())
 }
 
-/*func TestGenServer(t *testing.T) {
-	genserver := NewGenServer("test state", core.LocalScope, CallTest, CastTest)
+func TestGenServer(t *testing.T) {
+	genserver,err := NewGenServer(TestState{"test state"}, core.LocalScope, CallTest, CastTest)
+	if err != nil {
+		t.Fatal(err.Error())
+	}
+
+	genserverStarted := make(chan bool, 1)
+	genserverStopped := make(chan bool, 1)
 	go func() {
-		t.Log("genserver start error ", genserver.Start())
+		if err := genserver.Start(genserverStarted); err != nil {
+			genserverStopped <- false
+			t.Fatal(err.Error())
+		}
+
+		genserverStopped <- true
 	}()
 
-	for !core.PidHealthCheck(genserver.Pid.GetAddr()) {
-		time.Sleep(25 * time.Microsecond)
-		t.Log("waiting for genserver to start")
+	<- genserverStarted
+
+	//time.Sleep(25 * time.Microsecond)
+	t.Log("waiting for genserver to start")
+
+	msg1 := TestMessage{
+		Body: "test1",
 	}
 
-	msg1 := core.Message{
-		Type:        core.Message_SIMPLE,
-		Description: "test call",
+	returnMsg1, err := Call(genserver.Pid.Addr, "localhost", msg1)
+	if err != nil {
+		t.Fatal(err.Error())
 	}
-
-	returnMsg1 := Call(PidAddr(genserver.Pid.Addr), FromAddr("localhost"), msg1)
 	t.Log(returnMsg1)
 
-	Cast(PidAddr(genserver.Pid.GetAddr()), PidAddr("localhost"), msg1)
+	/*Cast(PidAddr(genserver.Pid.GetAddr()), PidAddr("localhost"), msg1)
 
 	time.Sleep(25 * time.Millisecond)
 
-	t.Log("final state: ", genserver.State)
+	t.Log("final state: ", genserver.State)*/
+
+	//time.Sleep(500 * time.Microsecond)
+	t.Log("waiting for genserver to clear inbox before terminate")
 
 	genserver.Terminate()
 
+	<- genserverStopped
 }
-*/
+
 
 type TestMessage struct {
 	Body string
