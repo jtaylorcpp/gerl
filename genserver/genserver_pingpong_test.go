@@ -78,12 +78,16 @@ func TestGenServers(t *testing.T) {
 	}
 	gs1Started := make(chan bool, 1)
 	gs2Started := make(chan bool, 1)
+	gs1Stopped := make(chan bool, 1)
+	gs2Stopped := make(chan bool, 1)
 	go func() {
 		t.Log(gs1.Start(gs1Started))
+		gs1Stopped <- true
 	}()
 
 	go func() {
 		t.Log(gs2.Start(gs2Started))
+		gs2Stopped <- true
 	}()
 
 	<- gs1Started
@@ -122,29 +126,11 @@ func TestGenServers(t *testing.T) {
 	if returnPong2.(Ball).Action != "pong" {
 		t.Fatal("should have gotten a pong back")
 	}
-	/*rmsg1 := Call(gs2.Pid.GetAddr(), "localhost", Ball {
-		Action: "ping",
-		Description: "ping",
-	})
-
-	t.Log("pong test: ", rmsg1)
-
-	if rmsg1.GetDescription() != "ping pong" {
-		t.Fatal("pong test failed")
-	}
-
-	rmsg2 := Call(PidAddr(gs1.Pid.GetAddr()), FromAddr("localhost"), core.Message{
-		Type:        core.Message_SIMPLE,
-		Description: "serve",
-	})
-
-	t.Log("ping test: ", rmsg2)
-
-	if rmsg2.GetDescription() != "ping pong" {
-		t.Fatal("ping serve test failed")
-	}*/
-
+	
 	gs1.Terminate()
 	gs2.Terminate()
+
+	<- gs1Stopped
+	<- gs2Stopped
 }
 
