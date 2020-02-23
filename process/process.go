@@ -42,10 +42,11 @@ func New(scope core.Scope, handler ProcHandler) *Process {
 // Starts a process which is blocking until an error is reported.
 // The main thread processes all incoming Ccore.GerlMsg, and errors from both the
 // Process and Pid.
-func (p *Process) Start() error {
+func (p *Process) Start(started chan<- bool) error {
 	var err error
 	p.Pid, err = core.NewPid("", "", p.Scope)
 	if err != nil {
+		started <- false
 		return err
 	}
 
@@ -59,6 +60,7 @@ func (p *Process) Start() error {
 
 	log.Printf("process with pid<%v> entering main loop\n", p.Pid.GetAddr())
 
+	started <- true
 	for {
 		select {
 		case err := <-p.Pid.Errors:
@@ -69,7 +71,7 @@ func (p *Process) Start() error {
 			return err
 		case <-p.Terminated:
 			log.Println("process terminated")
-			return errors.New("process terminated")
+			return nil
 		case msg, ok := <-p.Pid.Inbox:
 			log.Println("process message from inbox")
 			if !ok {
@@ -85,7 +87,7 @@ func (p *Process) Start() error {
 		}
 	}
 
-	return errors.New("process ended in error")
+	return nil
 }
 
 // Terminates all of the Process side channels. Terminates the Pid and clears
