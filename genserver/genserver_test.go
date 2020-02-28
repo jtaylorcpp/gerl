@@ -46,44 +46,44 @@ func TestGenServerCallHandlerParsing(t *testing.T) {
 		t.Fatal("returned message is not equal to sent message")
 	}
 
-	_, err = newCustomCallHandler(func(){})
+	_, err = newCustomCallHandler(func() {})
 	if err == nil {
 		t.Fatal("this func is not right and should have errored out")
 	}
 
 	t.Log(err.Error())
 
-	_, err = newCustomCallHandler(func(a,b,c,d int)(int,int){return 0,0})
+	_, err = newCustomCallHandler(func(a, b, c, d int) (int, int) { return 0, 0 })
 	if err == nil {
 		t.Fatal("this func is not right and should have errored out")
 	}
 	t.Log(err.Error())
 
-	_, err = newCustomCallHandler(func(_ core.Pid, b,c,d int)(int,int){return 0,0})
+	_, err = newCustomCallHandler(func(_ core.Pid, b, c, d int) (int, int) { return 0, 0 })
 	if err == nil {
 		t.Fatal("this func is not right and should have errored out")
 	}
 	t.Log(err.Error())
 
-	_, err = newCustomCallHandler(func(_ core.Pid, _ struct{},c,d int)(int,int){return 0,0})
+	_, err = newCustomCallHandler(func(_ core.Pid, _ struct{}, c, d int) (int, int) { return 0, 0 })
 	if err == nil {
 		t.Fatal("this func is not right and should have errored out")
 	}
 	t.Log(err.Error())
 
-	_, err = newCustomCallHandler(func(_ core.Pid, _ struct{},_ string,d int)(int,int){return 0,0})
+	_, err = newCustomCallHandler(func(_ core.Pid, _ struct{}, _ string, d int) (int, int) { return 0, 0 })
 	if err == nil {
 		t.Fatal("this func is not right and should have errored out")
 	}
 	t.Log(err.Error())
 
-	_, err = newCustomCallHandler(func(_ core.Pid, _ struct{},_ string, _ struct{})(int,int){return 0,0})
+	_, err = newCustomCallHandler(func(_ core.Pid, _ struct{}, _ string, _ struct{}) (int, int) { return 0, 0 })
 	if err == nil {
 		t.Fatal("this func is not right and should have errored out")
 	}
 	t.Log(err.Error())
 
-	_, err = newCustomCallHandler(func(_ core.Pid, _ struct{},_ string, _ struct{})(struct{},int){return struct{}{},0})
+	_, err = newCustomCallHandler(func(_ core.Pid, _ struct{}, _ string, _ struct{}) (struct{}, int) { return struct{}{}, 0 })
 	if err == nil {
 		t.Fatal("this func is not right and should have errored out")
 	}
@@ -117,44 +117,44 @@ func TestGenServerCastHandlerParsing(t *testing.T) {
 		t.Fatal("state returned is not equal")
 	}
 
-	_, err = newCustomCallHandler(func(){})
+	_, err = newCustomCallHandler(func() {})
 	if err == nil {
 		t.Fatal("this func is not right and should have errored out")
 	}
 
 	t.Log(err.Error())
 
-	_, err = newCustomCallHandler(func(a,b,c,d int)(int,int){return 0,0})
+	_, err = newCustomCallHandler(func(a, b, c, d int) (int, int) { return 0, 0 })
 	if err == nil {
 		t.Fatal("this func is not right and should have errored out")
 	}
 	t.Log(err.Error())
 
-	_, err = newCustomCallHandler(func(_ core.Pid, b,c,d int)(int,int){return 0,0})
+	_, err = newCustomCallHandler(func(_ core.Pid, b, c, d int) (int, int) { return 0, 0 })
 	if err == nil {
 		t.Fatal("this func is not right and should have errored out")
 	}
 	t.Log(err.Error())
 
-	_, err = newCustomCallHandler(func(_ core.Pid, _ struct{},c,d int)(int,int){return 0,0})
+	_, err = newCustomCallHandler(func(_ core.Pid, _ struct{}, c, d int) (int, int) { return 0, 0 })
 	if err == nil {
 		t.Fatal("this func is not right and should have errored out")
 	}
 	t.Log(err.Error())
 
-	_, err = newCustomCallHandler(func(_ core.Pid, _ struct{},_ string,d int)(int,int){return 0,0})
+	_, err = newCustomCallHandler(func(_ core.Pid, _ struct{}, _ string, d int) (int, int) { return 0, 0 })
 	if err == nil {
 		t.Fatal("this func is not right and should have errored out")
 	}
 	t.Log(err.Error())
 
-	_, err = newCustomCallHandler(func(_ core.Pid, _ struct{},_ string, _ struct{})(int,int){return 0,0})
+	_, err = newCustomCallHandler(func(_ core.Pid, _ struct{}, _ string, _ struct{}) (int, int) { return 0, 0 })
 	if err == nil {
 		t.Fatal("this func is not right and should have errored out")
 	}
 	t.Log(err.Error())
 
-	_, err = newCustomCallHandler(func(_ core.Pid, _ struct{},_ string, _ struct{})(struct{},int){return struct{}{},0})
+	_, err = newCustomCallHandler(func(_ core.Pid, _ struct{}, _ string, _ struct{}) (struct{}, int) { return struct{}{}, 0 })
 	if err == nil {
 		t.Fatal("this func is not right and should have errored out")
 	}
@@ -162,7 +162,7 @@ func TestGenServerCastHandlerParsing(t *testing.T) {
 }
 
 func TestGenServer(t *testing.T) {
-	genserver,err := NewGenServer(TestState{"test state"}, core.LocalScope, CallTest, CastTest)
+	genserver, err := NewGenServer(TestState{"test state"}, core.LocalScope, CallTest, CastTest)
 	if err != nil {
 		t.Fatal(err.Error())
 	}
@@ -178,7 +178,7 @@ func TestGenServer(t *testing.T) {
 		genserverStopped <- true
 	}()
 
-	<- genserverStarted
+	<-genserverStarted
 
 	//time.Sleep(25 * time.Microsecond)
 	t.Log("waiting for genserver to start")
@@ -204,9 +204,31 @@ func TestGenServer(t *testing.T) {
 
 	genserver.Terminate()
 
-	<- genserverStopped
+	<-genserverStopped
 }
 
+func BenchmarkGenServerStart(b *testing.B) {
+	for i := 0; i < b.N; i++ {
+		genserver, err := NewGenServer(TestState{"test state"}, core.LocalScope, CallTest, CastTest)
+		if err != nil {
+			b.Fatal(err.Error())
+		}
+
+		genserverStarted := make(chan bool, 1)
+		genserverStopped := make(chan bool, 1)
+		go func() {
+			if err := genserver.Start(genserverStarted); err != nil {
+				genserverStopped <- false
+				b.Fatal(err.Error())
+			}
+
+			genserverStopped <- true
+		}()
+		<-genserverStarted
+		genserver.Terminate()
+		<-genserverStopped
+	}
+}
 
 type TestMessage struct {
 	Body string

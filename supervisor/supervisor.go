@@ -2,7 +2,7 @@ package supervisor
 
 import (
 	"errors"
-	"log"
+	log "github.com/sirupsen/logrus"
 )
 
 type Supervisable interface {
@@ -66,8 +66,8 @@ type Child struct {
 	Name            string
 	Process         Supervisable
 	RestartStrategy ProcessStrategy
-	Terminate       chan bool
-	Termianted      chan bool
+	TerminateIn     chan bool
+	TerminateOut    chan bool
 }
 
 type ChildFailure struct {
@@ -80,49 +80,126 @@ func NewChild(name string, proc Supervisable, strat ProcessStrategy) *Child {
 		Name:            name,
 		Process:         proc,
 		RestartStrategy: strat,
-		Terminate:       make(chan bool, 1),
-		Termianted:      make(chan bool, 1),
+		TerminateIn:     make(chan bool, 1),
+		TerminateOut:    make(chan bool, 1),
 	}
 
 	return c
 }
 
-func (c *Child) Start() ChildFailure {
-	restarted := false
-
-restartProcess:
-	log.Println("starting child process")
+func (c *Child) restartNever(started chan<- bool) error {
 	childStarted := make(chan bool, 1)
+	defer close(childStarted)
+	ChildError := make(chan error, 1)
+	defer close(ChildError)
+	go func() {
+		ChildError <- c.Process.Start(childStarted)
+	}()
+
+	started <- <-childStarted
+
+	select {
+	case err := <-ChildError:
+		log.Println("child process terminated")
+		return err
+	case <-c.TerminateIn:
+		log.Println("terminating child process")
+		c.Process.Terminate()
+		close(c.TerminateIn)
+		c.TerminateOut <- true
+		return nil
+	}
+}
+
+func (c *Child) restartOnce(started chan<- bool) error {
+	restarted := false
+restart:
+	childStarted := make(chan bool, 1)
+	defer close(childStarted)
 	childError := make(chan error, 1)
+	defer close(childError)
+
 	go func() {
 		childError <- c.Process.Start(childStarted)
 	}()
 
-	for {
-		select {
-		case started := <-childStarted:
-			if !started {
-				log.Println("child process failed ot start")
-				switch c.RestartStrategy {
-				case RESTART_ALWAYS:
-					goto restartProcess
-				case RESTART_ONCE:
-					if !restarted {
-						restarted = true
-						goto restartProcess
-					} else {
-						return ChildFailure{
-							Name:  c.Name,
-							Error: errors.New("Process has failed and already been restarted"),
-						}
-					}
-				case RESTART_NEVER:
-					return ChildFailure{
-						Name:  c.Name,
-						Error: errors.New("Process has failed"),
-					}
+	started <- true
+
+	if hasStarted := <-childStarted; !hasStarted {
+		if restarted {
+			return errors.New("child has restarted too many times")
+		} else {
+			restarted = true
+			goto restart
+		}
+	}
+
+	select {
+	case err := <-childError:
+		if err != nil {
+			log.Printf("child process returned error: %s\n", err.Error())
+		}
+
+		if restarted {
+			log.Println("child has restarted too many times")
+			return err
+		} else {
+			restarted = true
+			goto restart
+		}
+	case <-c.TerminateIn:
+		log.Println("child directly terminated")
+		c.Process.Terminate()
+		close(c.TerminateIn)
+		c.TerminateOut <- true
+		return nil
+	}
+}
+
+func (c *Child) restartAlways(started chan<- bool) {}
+
+/*func (c *Child) Start(started chan<- bool) ChildFailure {
+	restarted := false
+
+restartProcess:
+	c.TerminateIn = make(chan bool, 1)
+	c.TerminateOut = make(chan bool, 1)
+	childStarted := make(chan bool, 1)
+	childError := make(chan error, 1)
+	log.Println("starting child process")
+
+	go func() {
+		childError <- c.Process.Start(childStarted)
+	}()
+
+	if !<-childStarted {
+		log.Println("child process failed to start")
+		started <- false
+		switch c.RestartStrategy {
+		case RESTART_ALWAYS:
+			goto restartProcess
+		case RESTART_ONCE:
+			if !restarted {
+				restarted = true
+				goto restartProcess
+			} else {
+				return ChildFailure{
+					Name:  c.Name,
+					Error: errors.New("Process has failed and already been restarted"),
 				}
 			}
+		case RESTART_NEVER:
+			return ChildFailure{
+				Name:  c.Name,
+				Error: errors.New("Process has failed"),
+			}
+		}
+	}
+	started <- true
+
+	log.Println("child started")
+	for {
+		select {
 		case err := <-childError:
 			log.Println("child process has terminated")
 			switch c.RestartStrategy {
@@ -143,49 +220,32 @@ restartProcess:
 				}
 			case RESTART_NEVER:
 				log.Println("restarting child process - never")
+				close(c.TerminateIn)
+				c.TerminateOut <- true
 				return ChildFailure{
 					Name:  c.Name,
 					Error: err,
 				}
 			}
-		case _ = <-c.Terminate:
+		case <-c.TerminateIn:
 			log.Println("child has been terminated")
-			switch c.RestartStrategy {
-			case RESTART_ALWAYS:
-				// terminate the process but forcefully close child since it
-				//  will try to restart the process
-				c.Process.Terminate()
-				close(c.Terminate)
-				c.Termianted <- true
-				close(c.Termianted)
-				return ChildFailure{
-					Name:  c.Name,
-					Error: nil,
-				}
-			case RESTART_ONCE:
-				// set the restarted flag to allow it to naturally close out once
-				//  the process is termianted
-				restarted = true
-				c.Process.Terminate()
-				close(c.Terminate)
-				c.Termianted <- true
-				close(c.Termianted)
-			case RESTART_NEVER:
-				// since the process will never be restarted; terminate it
-				c.Process.Terminate()
-				close(c.Terminate)
-				c.Termianted <- true
-				close(c.Termianted)
-			}
-			c.Process.Terminate()
-			close(c.Terminate)
-			c.Termianted <- true
-			close(c.Termianted)
+			goto closeout
 		}
 	}
-
+closeout:
+	log.Println("child closing out")
+	c.Process.Terminate()
+	close(c.TerminateIn)
+	c.TerminateOut <- true
 	return ChildFailure{
 		Name:  c.Name,
 		Error: nil,
 	}
 }
+
+func (c *Child) Terminate() {
+	c.TerminateIn <- true
+	<-c.TerminateOut
+	close(c.TerminateOut)
+}
+*/

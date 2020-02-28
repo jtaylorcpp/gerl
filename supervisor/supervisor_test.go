@@ -5,7 +5,6 @@ import (
 	"gerl/genserver"
 	"log"
 	"testing"
-	"time"
 )
 
 func TestEmptySupervisor(t *testing.T) {
@@ -18,6 +17,66 @@ func TestEmptySupervisor(t *testing.T) {
 	if s.Strategy != ONE_FOR_ALL {
 		t.Fatal("correct strategy not saved")
 	}
+}
+
+func TestRestartNever(t *testing.T) {
+	gserver, err := genserver.NewGenServer(TestState{"test state"}, core.LocalScope, CallTest, CastTest)
+	if err != nil {
+		t.Fatal(err.Error())
+	}
+
+	// close process directly
+	child := Child{
+		Name:            "test",
+		Process:         gserver,
+		RestartStrategy: RESTART_NEVER,
+	}
+
+	started := make(chan bool, 1)
+	errorChan := make(chan error, 1)
+	go func() {
+		errorChan <- child.restartNever(started)
+	}()
+	<-started
+
+	child.Process.Terminate()
+
+	err = <- errorChan
+	switch err {
+	case nil:
+		t.Log("process terminated with no error")
+	default:
+		t.Fatalf("process terminated with error: %s\n", err.Error())
+	}
+}
+
+/*func TestChildTerminate(t *testing.T) {
+	gserver, err := genserver.NewGenServer(TestState{"test state"}, core.LocalScope, CallTest, CastTest)
+	if err != nil {
+		t.Fatal(err.Error())
+	}
+
+	child := Child{
+		Name:            "test",
+		Process:         gserver,
+		RestartStrategy: RESTART_NEVER,
+	}
+
+	started := make(chan bool, 1)
+	stopped := make(chan bool, 1)
+	log.Println("starting child")
+	go func() {
+		childFail := child.Start(started)
+		if childFail.Error != nil {
+			t.Fatal(childFail.Error.Error())
+		}
+		log.Println("child closed out in test")
+		stopped <- true
+	}()
+	<-started
+	log.Println("terminating child")
+	child.Terminate()
+	<-stopped
 }
 
 func TestChildRestartNever(t *testing.T) {
@@ -33,10 +92,11 @@ func TestChildRestartNever(t *testing.T) {
 	}
 
 	childErr := make(chan ChildFailure, 1)
-
+	childStart := make(chan bool, 1)
 	go func() {
-		childErr <- child.Start()
+		childErr <- child.Start(childStart)
 	}()
+	<-childStart
 
 	if len(childErr) != 0 {
 		t.Fatal("child exited prematurely")
@@ -45,7 +105,7 @@ func TestChildRestartNever(t *testing.T) {
 	child.Process.Terminate()
 
 	// give time to propogate terminate to child
-	time.Sleep(50 * time.Microsecond)
+	<-child.TerminateOut
 
 	if len(childErr) != 1 {
 		t.Fatal("process did not exit properly")
@@ -62,60 +122,42 @@ func TestChildRestartNever(t *testing.T) {
 }
 
 func TestChildRestartOnce(t *testing.T) {
+
 	gserver, err := genserver.NewGenServer(TestState{"test state"}, core.LocalScope, CallTest, CastTest)
 	if err != nil {
 		t.Fatal(err.Error())
 	}
 
 	childErr := make(chan ChildFailure, 1)
+	childStarted := make(chan bool, 1)
 	child := NewChild("test2", gserver, RESTART_ONCE)
 	go func() {
-		childErr <- child.Start()
+		childErr <- child.Start(childStarted)
 	}()
+	<-childStarted
 
 	if len(childErr) != 0 {
 		t.Fatal("child closed out prematurely")
 	}
 
 	child.Process.Terminate()
-	time.Sleep(50 * time.Microsecond)
-
-	// child should restart the process
-
-	if len(childErr) != 0 {
-		t.Fatal("child should not close after single process termination")
-	}
-
-	child.Process.Terminate()
-	time.Sleep(50 * time.Microsecond)
-
-	// child should not restart the process
-
-	if len(childErr) != 1 {
-		t.Fatal("child should close after second process termiantion")
-	}
-
+	time.Sleep(100 * time.Millisecond)
+	t.Log(len(childStarted))
 	/*
-		t.Log("waiting for genserver to start")
+		// child should restart the process
+			if len(childErr) != 0 {
+				t.Fatal("child should not close after single process termination")
+			}
 
-		msg1 := TestMessage{
-			Body: "test1",
-		}
+			child.Process.Terminate()
+			time.Sleep(50 * time.Microsecond)
 
-		returnMsg1, err := Call(genserver.Pid.Addr, "localhost", msg1)
-		if err != nil {
-			t.Fatal(err.Error())
-		}
-		t.Log(returnMsg1)
+			// child should not restart the process
 
-		//time.Sleep(500 * time.Microsecond)
-		t.Log("waiting for genserver to clear inbox before terminate")
-
-		genserver.Terminate()
-
-		<-genserverStopped
-	*/
-}
+			if len(childErr) != 1 {
+				t.Fatal("child should close after second process termiantion")
+			}
+}*/
 
 type TestMessage struct {
 	Body string
