@@ -2,10 +2,14 @@ package process
 
 import (
 	"errors"
-	"log"
+	log "github.com/sirupsen/logrus"
 
 	"gerl/core"
 )
+
+func init() {
+	log.SetReportCaller(true)
+}
 
 type PidAddr = string
 type FromAddr = string

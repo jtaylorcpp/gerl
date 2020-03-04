@@ -30,10 +30,12 @@ func TestProcess(t *testing.T) {
 
 	t.Log("about to start main process")
 
+	procStarted := make(chan bool, 1)
 	go func() {
-		t.Log(proc.Start())
+		t.Log(proc.Start(procStarted))
 	}()
 
+	<-procStarted
 	time.Sleep(25 * time.Millisecond)
 	t.Log("process started with pid: ", proc.Pid.GetAddr())
 
