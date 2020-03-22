@@ -4,11 +4,16 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	log "github.com/sirupsen/logrus"
 	"reflect"
+
+	log "github.com/sirupsen/logrus"
 
 	"gerl/core"
 )
+
+func init() {
+	log.SetReportCaller(true)
+}
 
 type State = interface{}
 type Message = []byte
@@ -230,9 +235,8 @@ type GenServer struct {
 	CustomCast GenServerCastHandler
 	Errors     chan error
 	// BufferSize (uint64) sets the initial Pid GerlMessage buffer size.
-	TerminateIn    chan bool
-	TerminateOut   chan bool
-	TerminatedFlag bool
+	TerminateIn  chan bool
+	TerminateOut chan bool
 }
 
 // Initializes the GenServer with the intial state
@@ -285,6 +289,8 @@ func (gs *GenServer) Start(started chan<- bool) error {
 	}
 
 	log.Println("GenServer available at pid: ", gs.Pid.GetAddr())
+	log.Printf("genserver: %#v\n", gs)
+
 	started <- true
 	var loopState State
 	loopState = gs.State
@@ -320,8 +326,12 @@ func (gs *GenServer) Start(started chan<- bool) error {
 		}
 	}
 terminate:
-	gs.TerminateOut <- true
+	gs.Pid.Terminate()
+	log.Printf("Genserver with pid<%v> terminated\n", gs.Pid)
+	gs.Pid = nil
 	log.Println("genserver end state: ", loopState)
+	gs.TerminateOut <- true
+	close(gs.TerminateOut)
 	return nil
 }
 
@@ -344,6 +354,10 @@ func (gs *GenServer) CastHandler(msg core.Message, fa FromAddr, s State) State {
 	return newState
 }
 
+func (gs *GenServer) GetPid() *core.Pid {
+	return gs.Pid
+}
+
 // Terminate Calls the Pid.Terminate function to close out both the
 // Pid and GenServer
 func (gs *GenServer) Terminate() {
@@ -352,9 +366,6 @@ func (gs *GenServer) Terminate() {
 	close(gs.TerminateIn)
 	log.Println("Waiting for generserver to terminate")
 	<-gs.TerminateOut
-	close(gs.TerminateOut)
-	gs.Pid.Terminate()
-	log.Printf("Genserver with pid<%v> terminated\n", gs.Pid)
 }
 
 // Call sends an arbitrary core.Message to the GenServer at address PidAddr

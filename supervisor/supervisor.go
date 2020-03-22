@@ -2,6 +2,8 @@ package supervisor
 
 import (
 	"errors"
+	"gerl/core"
+
 	log "github.com/sirupsen/logrus"
 )
 
@@ -16,6 +18,8 @@ type Supervisable interface {
 	// false - there was an error on startup
 	// In the case of a false by the supervised process the Start func should end with an error returned
 	Start(chan<- bool) error
+	// returns the current pid of the supervisable process
+	GetPid() *core.Pid
 	// Terminate cleanly closes out the child process
 	// If a proccess exits by error this should be signalled by the
 	//    Start func returning an error
@@ -35,29 +39,172 @@ type ChildrenStrategy uint8
 
 const (
 	// startegy use for restarting children as they terminate/fail
+	// restart the one that fails
 	ONE_FOR_ONE ChildrenStrategy = iota
+	// restart all
 	ONE_FOR_ALL
+	// restart all after sequentially
 	REST_FOR_ONE
 )
 
 type Supervisor struct {
-	Children []Child
-	Strategy ChildrenStrategy
+	Children     []*Child
+	Strategy     ChildrenStrategy
+	ErrorIn      chan ChildError
+	TerminateIn  chan bool
+	TerminateOut chan bool
 }
 
-func NewSupervisor(children []Child, childStrategy ChildrenStrategy) *Supervisor {
+func NewSupervisor(children []*Child, childStrategy ChildrenStrategy) *Supervisor {
 	s := &Supervisor{}
 	s.Children = children
 	s.Strategy = childStrategy
-
+	s.TerminateIn = make(chan bool, 1)
+	s.TerminateOut = make(chan bool, 1)
+	s.ErrorIn = make(chan ChildError, len(children))
 	return s
 }
 
-func (s *Supervisor) Start(chan<- bool) error {
+func (s *Supervisor) Start(started chan<- bool) error {
+	switch s.Strategy {
+	case ONE_FOR_ONE:
+		s.oneForOne(started)
+	}
 	return nil
 }
 
-func (s *Supervisor) Terminate() {}
+func (s *Supervisor) oneForOne(started chan<- bool) error {
+	// kick off all of the children
+	for _, child := range s.Children {
+		childStarted := make(chan bool, 1)
+		log.Printf("starting child %s\n", child.Name)
+		go func(c *Child, s *Supervisor, start chan<- bool) {
+			s.ErrorIn <- ChildError{
+				Name:  c.Name,
+				Error: c.Start(start),
+			}
+		}(child, s, childStarted)
+		<-childStarted
+		log.Printf("child %s started\n", child.Name)
+	}
+	started <- true
+
+	// wait for child errors or term sigs
+	log.Println("supervisor entering main loop")
+	select {
+	case childErr := <-s.ErrorIn:
+		log.Printf("child %s terminated with error %#v\n", childErr.Name, childErr.Error)
+		var childToRestart *Child
+		for _, child := range s.Children {
+			if child.Name == childErr.Name {
+				childToRestart = child
+				break
+			}
+		}
+		log.Printf("restarting child %s\n", childToRestart.Name)
+		childRestarted := make(chan bool, 1)
+		go func(c *Child, s *Supervisor, start chan<- bool) {
+			s.ErrorIn <- ChildError{
+				Name:  c.Name,
+				Error: c.Start(start),
+			}
+		}(childToRestart, s, childRestarted)
+		<-childRestarted
+		log.Printf("child %s has been restarted\n", childToRestart.Name)
+
+	case <-s.TerminateIn:
+		log.Println("supervisor has been manually terminated")
+		for _, child := range s.Children {
+			child.Terminate()
+		}
+		if len(s.ErrorIn) != len(s.Children) {
+			return errors.New("not all child processes have terminated")
+		}
+
+		close(s.ErrorIn)
+		for cErr := range s.ErrorIn {
+			if cErr.Error != nil {
+				log.Printf("error from child process %s: %s\n", cErr.Name, cErr.Error.Error())
+				return errors.New("child process did not exit cleanly")
+			}
+		}
+
+		s.TerminateOut <- true
+		close(s.TerminateOut)
+		break
+	}
+
+	return nil
+}
+
+func (s *Supervisor) oneForAll(started chan<- bool) error {
+	// kick off all of the children
+	for _, child := range s.Children {
+		childStarted := make(chan bool, 1)
+		log.Printf("starting child %s\n", child.Name)
+		go func(c *Child, s *Supervisor, start chan<- bool) {
+			s.ErrorIn <- ChildError{
+				Name:  c.Name,
+				Error: c.Start(start),
+			}
+		}(child, s, childStarted)
+		<-childStarted
+		log.Printf("child %s started\n", child.Name)
+	}
+	started <- true
+
+	// wait for child errors or term sigs
+	log.Println("supervisor entering main loop")
+	select {
+	case childErr := <-s.ErrorIn:
+		log.Printf("child %s terminated with error %#v\n", childErr.Name, childErr.Error)
+		for _, child := range s.Children {
+			log.Printf("restarting child %s\n", child.Name)
+			if child.Process.GetPid() != nil {
+				child.Terminate()
+			}
+			childRestarted := make(chan bool, 1)
+			go func(c *Child, s *Supervisor, start chan<- bool) {
+				s.ErrorIn <- ChildError{
+					Name:  c.Name,
+					Error: c.Start(start),
+				}
+			}(child, s, childRestarted)
+			<-childRestarted
+			log.Printf("child %s has been restarted\n", child.Name)
+		}
+
+	case <-s.TerminateIn:
+		log.Println("supervisor has been manually terminated")
+		for _, child := range s.Children {
+			child.Terminate()
+		}
+		if len(s.ErrorIn) != len(s.Children) {
+			return errors.New("not all child processes have terminated")
+		}
+
+		close(s.ErrorIn)
+		for cErr := range s.ErrorIn {
+			if cErr.Error != nil {
+				log.Printf("error from child process %s: %s\n", cErr.Name, cErr.Error.Error())
+				return errors.New("child process did not exit cleanly")
+			}
+		}
+
+		s.TerminateOut <- true
+		close(s.TerminateOut)
+		break
+	}
+
+	return nil
+}
+
+func (s *Supervisor) Terminate() {
+	s.TerminateIn <- true
+	close(s.TerminateIn)
+	<-s.TerminateOut
+	log.Println("supervisor has terminated")
+}
 
 // Child struct describes a supervised process for a supervisor
 //   Name is a human readbale label to apply to a supervised instance of a process
@@ -74,7 +221,7 @@ type Child struct {
 	TerminateOut    chan bool
 }
 
-type ChildFailure struct {
+type ChildError struct {
 	Name  string
 	Error error
 }
@@ -92,6 +239,8 @@ func NewChild(name string, proc Supervisable, strat ProcessStrategy) *Child {
 }
 
 func (c *Child) Start(started chan<- bool) error {
+	c.TerminateIn = make(chan bool, 1)
+	c.TerminateOut = make(chan bool, 1)
 	switch c.RestartStrategy {
 	case RESTART_NEVER:
 		return c.restartNever(started)
@@ -188,6 +337,7 @@ func (c *Child) restartAlways(started chan<- bool) error {
 		}()
 
 		if hasStarted := <-childStarted; !hasStarted {
+			started <- false
 			continue
 		}
 

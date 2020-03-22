@@ -120,9 +120,6 @@ func (p *Pid) RUOK(ctx context.Context, _ *Empty) (*Health, error) {
 // If address is empty an address based on scope is assigned
 // If port is left empty a random one will be used
 func NewPid(address, port string, scope Scope) (*Pid, error) {
-	// error chan to elevate to process using pid
-	Errors := make(chan error, 1)
-
 	// get default addresses to use
 	var ipaddress string
 	if address == "" {
@@ -151,14 +148,13 @@ func NewPid(address, port string, scope Scope) (*Pid, error) {
 
 	if lis == nil {
 		log.Println("generated listener is nil")
-		return nil,  errors.New("pid listener is nil")
+		return nil, errors.New("pid listener is nil")
 	}
 
 	if lis.Addr() == nil {
 		log.Println("generated listener addr is nil")
 		return nil, errors.New("pid listener addr is nil")
 	}
-
 
 	// new grpc server constructor
 	grpcServer := grpc.NewServer()
@@ -169,7 +165,7 @@ func NewPid(address, port string, scope Scope) (*Pid, error) {
 		Addr:     lis.Addr().String(),
 		Inbox:    make(chan GerlMsg, 1),
 		Outbox:   make(chan GerlMsg, 1),
-		Errors:   Errors,
+		Errors:   make(chan error, 1),
 		Server:   grpcServer,
 		LisTerm:  make(chan bool, 1),
 		Scope:    scope,
@@ -200,6 +196,9 @@ func (p Pid) GetAddr() string {
 
 // Terminates the Pid and closes all of the Pid side components
 func (p *Pid) Terminate() error {
+	if p == nil {
+		return errors.New("pid has already been terminated")
+	}
 	log.Printf("Pid <%v> terminating\n", p)
 	log.Println("closing inbox")
 	close(p.Inbox)

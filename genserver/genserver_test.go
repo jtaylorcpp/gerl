@@ -3,6 +3,7 @@ package genserver
 import (
 	"log"
 	"testing"
+
 	//"time"
 	"encoding/json"
 
@@ -205,6 +206,13 @@ func TestGenServer(t *testing.T) {
 	genserver.Terminate()
 
 	<-genserverStopped
+
+	t.Log("test genserver has nil proc")
+
+	if genserver.GetPid() != nil {
+		t.Fatalf("genserver proc should be nil but is %v\n", genserver.GetPid())
+
+	}
 }
 
 func BenchmarkGenServerStart(b *testing.B) {

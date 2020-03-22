@@ -2,6 +2,7 @@ package process
 
 import (
 	"errors"
+
 	log "github.com/sirupsen/logrus"
 
 	"gerl/core"
@@ -29,17 +30,19 @@ type Process struct {
 	// Error channel that forces a termination when an error is sent
 	Errors chan error
 	// Terminate channel that forces the main loop to terminate with termination error
-	Terminated chan bool
+	TerminateIn  chan bool
+	TerminateOut chan bool
 }
 
 // Builds a new Process that has yet to be started
 func New(scope core.Scope, handler ProcHandler) *Process {
 	return &Process{
-		Pid:        &core.Pid{},
-		Scope:      scope,
-		Handler:    handler,
-		Errors:     make(chan error, 2),
-		Terminated: make(chan bool, 1),
+		Pid:          &core.Pid{},
+		Scope:        scope,
+		Handler:      handler,
+		Errors:       make(chan error, 2),
+		TerminateIn:  make(chan bool, 1),
+		TerminateOut: make(chan bool, 1),
 	}
 }
 
@@ -73,7 +76,18 @@ func (p *Process) Start(started chan<- bool) error {
 		case err := <-p.Errors:
 			log.Println("process error, close process")
 			return err
-		case <-p.Terminated:
+		case <-p.TerminateIn:
+			log.Println("process terminating")
+			p.Pid.Terminate()
+			for {
+				err, ok := <-p.Pid.Errors
+				if !ok {
+					break
+				}
+				log.Println("process clearing pid errors: ", err)
+			}
+			log.Printf("process with pid<%v> temrinated\n", p.Pid.GetAddr())
+			p.Pid = nil
 			log.Println("process terminated")
 			return nil
 		case msg, ok := <-p.Pid.Inbox:
@@ -94,21 +108,17 @@ func (p *Process) Start(started chan<- bool) error {
 	return nil
 }
 
+func (p *Process) GetPid() *core.Pid {
+	return p.Pid
+}
+
 // Terminates all of the Process side channels. Terminates the Pid and clears
 // all resulting errors.
 func (p *Process) Terminate() {
 	log.Printf("process with pid<%v> terminating\n", p.Pid.GetAddr())
-	p.Terminated <- true
-	close(p.Terminated)
-	p.Pid.Terminate()
-	for {
-		err, ok := <-p.Pid.Errors
-		if !ok {
-			break
-		}
-		log.Println("process clearing pid errors: ", err)
-	}
-	log.Printf("process with pid<%v> temrinated\n", p.Pid.GetAddr())
+	p.TerminateIn <- true
+	close(p.TerminateIn)
+	<-p.TerminateOut
 }
 
 // Send sends an arbitrary core.Message to a Process at PidAddr
