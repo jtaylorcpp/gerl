@@ -69,85 +69,160 @@ func (s *Supervisor) Start(started chan<- bool) error {
 	switch s.Strategy {
 	case ONE_FOR_ONE:
 		s.oneForOne(started)
+	case ONE_FOR_ALL:
+		s.oneForAll(started)
+	case REST_FOR_ONE:
+		s.restForOne(started)
 	}
 	return nil
+}
+
+func startChildProcess(c *Child, s *Supervisor, start chan<- bool) {
+	s.ErrorIn <- ChildError{
+		Name:  c.Name,
+		Error: c.Start(start),
+	}
 }
 
 func (s *Supervisor) oneForOne(started chan<- bool) error {
 	// kick off all of the children
 	for _, child := range s.Children {
 		childStarted := make(chan bool, 1)
+		childRestarted := make(chan bool, 1)
 		log.Printf("starting child %s\n", child.Name)
-		go func(c *Child, s *Supervisor, start chan<- bool) {
-			s.ErrorIn <- ChildError{
-				Name:  c.Name,
-				Error: c.Start(start),
-			}
-		}(child, s, childStarted)
+		go startChildProcess(child, s, childRestarted)
+		go child.RestartHandler(childRestarted, childStarted, child)
 		<-childStarted
+
 		log.Printf("child %s started\n", child.Name)
 	}
 	started <- true
 
 	// wait for child errors or term sigs
 	log.Println("supervisor entering main loop")
-	select {
-	case childErr := <-s.ErrorIn:
-		log.Printf("child %s terminated with error %#v\n", childErr.Name, childErr.Error)
-		var childToRestart *Child
-		for _, child := range s.Children {
-			if child.Name == childErr.Name {
-				childToRestart = child
-				break
+	for {
+		select {
+		case childErr := <-s.ErrorIn:
+			log.Printf("child %s terminated with error %#v\n", childErr.Name, childErr.Error)
+			var childToRestart *Child
+			for _, child := range s.Children {
+				if child.Name == childErr.Name {
+					childToRestart = child
+					break
+				}
 			}
-		}
-		log.Printf("restarting child %s\n", childToRestart.Name)
-		childRestarted := make(chan bool, 1)
-		go func(c *Child, s *Supervisor, start chan<- bool) {
-			s.ErrorIn <- ChildError{
-				Name:  c.Name,
-				Error: c.Start(start),
+			log.Printf("restarting child %s\n", childToRestart.Name)
+			childStarted := make(chan bool, 1)
+			childRestarted := make(chan bool, 1)
+			go startChildProcess(childToRestart, s, childRestarted)
+			go childToRestart.RestartHandler(childRestarted, childStarted, childToRestart)
+			<-childStarted
+			log.Printf("child %s has been restarted\n", childToRestart.Name)
+
+		case <-s.TerminateIn:
+			log.Println("supervisor has been manually terminated")
+			for _, child := range s.Children {
+				child.Terminate()
 			}
-		}(childToRestart, s, childRestarted)
-		<-childRestarted
-		log.Printf("child %s has been restarted\n", childToRestart.Name)
-
-	case <-s.TerminateIn:
-		log.Println("supervisor has been manually terminated")
-		for _, child := range s.Children {
-			child.Terminate()
-		}
-		if len(s.ErrorIn) != len(s.Children) {
-			return errors.New("not all child processes have terminated")
-		}
-
-		close(s.ErrorIn)
-		for cErr := range s.ErrorIn {
-			if cErr.Error != nil {
-				log.Printf("error from child process %s: %s\n", cErr.Name, cErr.Error.Error())
-				return errors.New("child process did not exit cleanly")
+			if len(s.ErrorIn) != len(s.Children) {
+				s.TerminateOut <- true
+				close(s.TerminateOut)
+				return errors.New("not all child processes have terminated")
 			}
-		}
 
-		s.TerminateOut <- true
-		close(s.TerminateOut)
-		break
+			close(s.ErrorIn)
+			for cErr := range s.ErrorIn {
+				if cErr.Error != nil {
+					log.Printf("error from child process %s: %s\n", cErr.Name, cErr.Error.Error())
+					s.TerminateOut <- true
+					close(s.TerminateOut)
+					return errors.New("child process did not exit cleanly")
+				}
+			}
+
+			s.TerminateOut <- true
+			close(s.TerminateOut)
+			return nil
+		}
 	}
-
-	return nil
 }
 
 func (s *Supervisor) oneForAll(started chan<- bool) error {
 	// kick off all of the children
 	for _, child := range s.Children {
 		childStarted := make(chan bool, 1)
+		childRestarted := make(chan bool, 1)
 		log.Printf("starting child %s\n", child.Name)
-		go func(c *Child, s *Supervisor, start chan<- bool) {
-			s.ErrorIn <- ChildError{
-				Name:  c.Name,
-				Error: c.Start(start),
+		go startChildProcess(child, s, childRestarted)
+		go child.RestartHandler(childRestarted, childStarted, child)
+		<-childStarted
+		log.Printf("child %s started\n", child.Name)
+	}
+	started <- true
+
+	// wait for child errors or term sigs
+	log.Println("supervisor entering main loop")
+	for {
+		select {
+		case childErr := <-s.ErrorIn:
+			log.Printf("child %s terminated with error %#v\n", childErr.Name, childErr.Error)
+			for _, child := range s.Children {
+				log.Printf("restarting child %s\n", child.Name)
+				log.Printf("terminating child %s\n", child.Name)
+
+				if child.Name == childErr.Name {
+					log.Printf("child %s has already been terminated\n", child.Name)
+				} else if child.Process.GetPid() != nil {
+					child.Terminate()
+				}
+
+				log.Printf("starting child %s\n", child.Name)
+				childStarted := make(chan bool, 1)
+				childRestarted := make(chan bool, 1)
+				go startChildProcess(child, s, childRestarted)
+				go child.RestartHandler(childRestarted, childStarted, child)
+				<-childStarted
+				log.Printf("child %s has been restarted\n", child.Name)
 			}
-		}(child, s, childStarted)
+
+			log.Println("all children processes have been restarted")
+
+		case <-s.TerminateIn:
+			log.Println("supervisor has been manually terminated")
+			for _, child := range s.Children {
+				child.Terminate()
+			}
+			if len(s.ErrorIn) != len(s.Children) {
+				s.TerminateOut <- true
+				close(s.TerminateOut)
+				return errors.New("not all child processes have terminated")
+			}
+
+			close(s.ErrorIn)
+			for cErr := range s.ErrorIn {
+				if cErr.Error != nil {
+					log.Printf("error from child process %s: %s\n", cErr.Name, cErr.Error.Error())
+					s.TerminateOut <- true
+					close(s.TerminateOut)
+					return errors.New("child process did not exit cleanly")
+				}
+			}
+
+			s.TerminateOut <- true
+			close(s.TerminateOut)
+			break
+		}
+	}
+}
+
+func (s *Supervisor) restForOne(started chan<- bool) error {
+	// kick off all of the children
+	for _, child := range s.Children {
+		childStarted := make(chan bool, 1)
+		childRestarted := make(chan bool, 1)
+		log.Printf("starting child %s\n", child.Name)
+		go startChildProcess(child, s, childRestarted)
+		go child.RestartHandler(childRestarted, childStarted, child)
 		<-childStarted
 		log.Printf("child %s started\n", child.Name)
 	}
@@ -158,21 +233,29 @@ func (s *Supervisor) oneForAll(started chan<- bool) error {
 	select {
 	case childErr := <-s.ErrorIn:
 		log.Printf("child %s terminated with error %#v\n", childErr.Name, childErr.Error)
+		foundErroredChild := false
 		for _, child := range s.Children {
-			log.Printf("restarting child %s\n", child.Name)
-			if child.Process.GetPid() != nil {
-				child.Terminate()
+			if child.Name == childErr.Name {
+				foundErroredChild = true
 			}
-			childRestarted := make(chan bool, 1)
-			go func(c *Child, s *Supervisor, start chan<- bool) {
-				s.ErrorIn <- ChildError{
-					Name:  c.Name,
-					Error: c.Start(start),
+			switch foundErroredChild {
+			case true:
+				log.Printf("restarting child %s\n", child.Name)
+				if child.Process.GetPid() != nil {
+					child.Terminate()
 				}
-			}(child, s, childRestarted)
-			<-childRestarted
-			log.Printf("child %s has been restarted\n", child.Name)
+				childStarted := make(chan bool, 1)
+				childRestarted := make(chan bool, 1)
+				go startChildProcess(child, s, childRestarted)
+				go child.RestartHandler(childRestarted, childStarted, child)
+				<-childStarted
+				log.Printf("child %s has been restarted\n", child.Name)
+			case false:
+				// do nothing as we have not either reached the child that needs
+				// to be restarted or passed it
+			}
 		}
+		log.Println("all children processes have been restarted")
 
 	case <-s.TerminateIn:
 		log.Println("supervisor has been manually terminated")
@@ -200,7 +283,9 @@ func (s *Supervisor) oneForAll(started chan<- bool) error {
 }
 
 func (s *Supervisor) Terminate() {
+	log.Println("terminating supervisor")
 	s.TerminateIn <- true
+	log.Println("terminating sigterm in chan")
 	close(s.TerminateIn)
 	<-s.TerminateOut
 	log.Println("supervisor has terminated")
@@ -217,6 +302,7 @@ type Child struct {
 	Name            string
 	Process         Supervisable
 	RestartStrategy ProcessStrategy
+	RestartHandler  ChildRestartHandler
 	TerminateIn     chan bool
 	TerminateOut    chan bool
 }
@@ -226,6 +312,27 @@ type ChildError struct {
 	Error error
 }
 
+// ChildRestartHandler will be called as a go routine and will process
+// the start events as the process restarts following its strategy
+type ChildRestartHandler func(restart chan bool, firstStart chan bool, child *Child)
+
+func defaultRestartHandler(restart chan bool, firstStart chan bool, c *Child) {
+	var started bool = false
+	for {
+		event, ok := <-restart
+		if !ok {
+			log.Warningf("restarts chan for child %s has been closed", c.Name)
+		}
+		if !started {
+			log.Infof("child %s start event recieved", c.Name)
+			firstStart <- event
+			started = true
+		} else {
+			log.Infof("child %s restart event recieved", c.Name)
+		}
+	}
+}
+
 func NewChild(name string, proc Supervisable, strat ProcessStrategy) *Child {
 	c := &Child{
 		Name:            name,
@@ -233,9 +340,14 @@ func NewChild(name string, proc Supervisable, strat ProcessStrategy) *Child {
 		RestartStrategy: strat,
 		TerminateIn:     make(chan bool, 1),
 		TerminateOut:    make(chan bool, 1),
+		RestartHandler:  defaultRestartHandler,
 	}
 
 	return c
+}
+
+func (c *Child) SetResethandler(handler ChildRestartHandler) {
+	c.RestartHandler = handler
 }
 
 func (c *Child) Start(started chan<- bool) error {
@@ -271,8 +383,8 @@ func (c *Child) restartNever(started chan<- bool) error {
 		return err
 	case <-c.TerminateIn:
 		log.Println("terminating child process")
-		c.Process.Terminate()
 		close(c.TerminateIn)
+		c.Process.Terminate()
 		c.TerminateOut <- true
 		return nil
 	}
@@ -290,16 +402,19 @@ restart:
 		childError <- c.Process.Start(childStarted)
 	}()
 
-	started <- true
-
 	if hasStarted := <-childStarted; !hasStarted {
 		if restarted {
+			started <- false
 			return errors.New("child has restarted too many times")
 		} else {
 			restarted = true
+			started <- false
 			goto restart
 		}
 	}
+
+	// child process has started
+	started <- true
 
 	select {
 	case err := <-childError:
@@ -316,8 +431,8 @@ restart:
 		}
 	case <-c.TerminateIn:
 		log.Println("child directly terminated")
-		c.Process.Terminate()
 		close(c.TerminateIn)
+		c.Process.Terminate()
 		c.TerminateOut <- true
 		return nil
 	}
@@ -337,6 +452,7 @@ func (c *Child) restartAlways(started chan<- bool) error {
 		}()
 
 		if hasStarted := <-childStarted; !hasStarted {
+			//started <- false
 			started <- false
 			continue
 		}

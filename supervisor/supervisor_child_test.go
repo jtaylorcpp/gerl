@@ -83,11 +83,7 @@ func TestRestartOnce(t *testing.T) {
 	}
 
 	// close process directly
-	child := Child{
-		Name:            "test",
-		Process:         gserver,
-		RestartStrategy: RESTART_ONCE,
-	}
+	child := NewChild("test", gserver, RESTART_ONCE)
 
 	started := make(chan bool, 1)
 	errorChan := make(chan error, 1)
@@ -95,7 +91,9 @@ func TestRestartOnce(t *testing.T) {
 		errorChan <- child.restartOnce(started)
 	}()
 	<-started
+	t.Log("process started")
 
+	t.Log("terminating process")
 	child.Process.Terminate()
 
 	if len(errorChan) != 0 {
