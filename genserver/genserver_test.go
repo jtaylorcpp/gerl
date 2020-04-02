@@ -1,13 +1,15 @@
 package genserver
 
 import (
-	"log"
 	"testing"
+	"time"
 
 	//"time"
 	"encoding/json"
 
 	"gerl/core"
+
+	log "github.com/sirupsen/logrus"
 )
 
 func TestGenServerCallHandlerParsing(t *testing.T) {
@@ -163,78 +165,62 @@ func TestGenServerCastHandlerParsing(t *testing.T) {
 }
 
 func TestGenServer(t *testing.T) {
-	genserver, err := NewGenServer(TestState{"test state"}, core.LocalScope, CallTest, CastTest)
+	config := &GenServerV2Config{
+		StartState:  TestState{"test state"},
+		Scope:       core.LocalScope,
+		CallHandler: CallTest,
+		CastHandler: CastTest,
+	}
+
+	genserver, err := NewGenServerV2(config)
 	if err != nil {
 		t.Fatal(err.Error())
 	}
 
-	genserverStarted := make(chan bool, 1)
-	genserverStopped := make(chan bool, 1)
 	go func() {
-		if err := genserver.Start(genserverStarted); err != nil {
-			genserverStopped <- false
-			t.Fatal(err.Error())
-		}
-
-		genserverStopped <- true
+		log.Errorln("error from running genserver: ", genserver.Start())
 	}()
 
-	<-genserverStarted
-
-	//time.Sleep(25 * time.Microsecond)
-	t.Log("waiting for genserver to start")
+	for !genserver.IsReady() {
+		time.Sleep(1 * time.Second)
+	}
 
 	msg1 := TestMessage{
 		Body: "test1",
 	}
 
-	returnMsg1, err := Call(genserver.Pid.Addr, "localhost", msg1)
+	returnMsg1, err := Call(genserver.pid.GetAddr(), "localhost", msg1)
 	if err != nil {
 		t.Fatal(err.Error())
 	}
 	t.Log(returnMsg1)
 
-	/*Cast(PidAddr(genserver.Pid.GetAddr()), PidAddr("localhost"), msg1)
-
-	time.Sleep(25 * time.Millisecond)
-
-	t.Log("final state: ", genserver.State)*/
-
-	//time.Sleep(500 * time.Microsecond)
-	t.Log("waiting for genserver to clear inbox before terminate")
-
 	genserver.Terminate()
-
-	<-genserverStopped
-
-	t.Log("test genserver has nil proc")
-
-	if genserver.GetPid() != nil {
-		t.Fatalf("genserver proc should be nil but is %v\n", genserver.GetPid())
-
-	}
+	log.Println("genserver terminated")
 }
 
 func BenchmarkGenServerStart(b *testing.B) {
 	for i := 0; i < b.N; i++ {
-		genserver, err := NewGenServer(TestState{"test state"}, core.LocalScope, CallTest, CastTest)
+		config := &GenServerV2Config{
+			StartState:  TestState{"test state"},
+			Scope:       core.LocalScope,
+			CallHandler: CallTest,
+			CastHandler: CastTest,
+		}
+
+		genserver, err := NewGenServerV2(config)
 		if err != nil {
 			b.Fatal(err.Error())
 		}
 
-		genserverStarted := make(chan bool, 1)
-		genserverStopped := make(chan bool, 1)
 		go func() {
-			if err := genserver.Start(genserverStarted); err != nil {
-				genserverStopped <- false
-				b.Fatal(err.Error())
-			}
-
-			genserverStopped <- true
+			log.Errorln("error from genserver: ", genserver.Start())
 		}()
-		<-genserverStarted
+		for !genserver.IsReady() {
+			// do nothing
+		}
+
 		genserver.Terminate()
-		<-genserverStopped
 	}
 }
 

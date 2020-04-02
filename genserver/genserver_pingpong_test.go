@@ -1,9 +1,10 @@
 package genserver
 
 import (
-	"log"
 	"testing"
-	//"time"
+	"time"
+
+	log "github.com/sirupsen/logrus"
 
 	"gerl/core"
 )
@@ -12,7 +13,7 @@ var PongAddr PidAddr
 
 type Ball struct {
 	NextAddr string
-	Action string
+	Action   string
 }
 
 type PingPongState struct {
@@ -32,7 +33,7 @@ func pingCall(pid core.Pid, ball Ball, fromaddr FromAddr, s PingPongState) (Ball
 		log.Println("ping sending to pong")
 		nextBallAction := Ball{
 			NextAddr: pid.GetAddr(),
-			Action: "ping",
+			Action:   "ping",
 		}
 		log.Printf("fromaddr<%v> pongaddr<%v> msg<%v>\n", fromaddr, ball.NextAddr, nextBallAction)
 		pong, err := Call(ball.NextAddr, pid.GetAddr(), nextBallAction)
@@ -55,7 +56,7 @@ func pongCall(_ core.Pid, ball Ball, fromaddr FromAddr, s PingPongState) (Ball, 
 	case "ping":
 		log.Println("pong got ping")
 		nextBallAction := Ball{
-			Action: "pong",
+			Action:   "pong",
 			NextAddr: "",
 		}
 
@@ -68,41 +69,53 @@ func pongCall(_ core.Pid, ball Ball, fromaddr FromAddr, s PingPongState) (Ball, 
 }
 
 func TestGenServers(t *testing.T) {
-	gs1, err := NewGenServer(PingPongState{}, core.LocalScope, pingCall, defaultCast)
+	config1 := &GenServerV2Config{
+		StartState:  PingPongState{},
+		Scope:       core.LocalScope,
+		CallHandler: pingCall,
+		CastHandler: defaultCast,
+	}
+	gs1, err := NewGenServerV2(config1)
 	if err != nil {
 		t.Fatal(err.Error())
 	}
-	gs2, err := NewGenServer(PingPongState{}, core.GlobalScope, pongCall, defaultCast)
+
+	config2 := &GenServerV2Config{
+		StartState:  PingPongState{},
+		Scope:       core.LocalScope,
+		CallHandler: pongCall,
+		CastHandler: defaultCast,
+	}
+	gs2, err := NewGenServerV2(config2)
 	if err != nil {
 		t.Fatal(err.Error())
 	}
-	gs1Started := make(chan bool, 1)
-	gs2Started := make(chan bool, 1)
-	gs1Stopped := make(chan bool, 1)
-	gs2Stopped := make(chan bool, 1)
+
 	go func() {
-		t.Log(gs1.Start(gs1Started))
-		gs1Stopped <- true
+		log.Errorln("error exiting ping server: ", gs1.Start())
 	}()
 
 	go func() {
-		t.Log(gs2.Start(gs2Started))
-		gs2Stopped <- true
+		log.Errorln("error exiting ping server: ", gs2.Start())
 	}()
 
-	<- gs1Started
-	<- gs2Started
+	for !gs1.IsReady() {
+		time.Sleep(10 * time.Millisecond)
+	}
 
-	log.Println("ping server addr: ", gs1.Pid.GetAddr())
-	log.Println("pong server addr: ", gs2.Pid.GetAddr())
-	
+	for !gs2.IsReady() {
+		time.Sleep(10 * time.Millisecond)
+	}
+
+	log.Println("ping server addr: ", gs1.pid.GetAddr())
+	log.Println("pong server addr: ", gs2.pid.GetAddr())
 
 	log.Println("test pong routine")
 	pong1 := Ball{
 		Action: "ping",
 	}
 
-	returnPong1, err := Call( gs2.Pid.GetAddr(), "localhost", pong1)
+	returnPong1, err := Call(gs2.pid.GetAddr(), "localhost", pong1)
 	if err != nil {
 		t.Fatal(err.Error())
 	}
@@ -112,11 +125,11 @@ func TestGenServers(t *testing.T) {
 	}
 
 	serve1 := Ball{
-		Action: "serve",
-		NextAddr: gs2.Pid.GetAddr(),
+		Action:   "serve",
+		NextAddr: gs2.pid.GetAddr(),
 	}
 
-	returnPong2, err := Call(gs1.Pid.GetAddr(), "localhost", serve1)
+	returnPong2, err := Call(gs1.pid.GetAddr(), "localhost", serve1)
 	if err != nil {
 		t.Fatal(err.Error())
 	}
@@ -126,11 +139,7 @@ func TestGenServers(t *testing.T) {
 	if returnPong2.(Ball).Action != "pong" {
 		t.Fatal("should have gotten a pong back")
 	}
-	
+
 	gs1.Terminate()
 	gs2.Terminate()
-
-	<- gs1Stopped
-	<- gs2Stopped
 }
-
