@@ -42,34 +42,6 @@ type Child struct {
 	mutex      *sync.Mutex
 }
 
-/*
-type ChildError struct {
-	Name  string
-	Error error
-}
-
-// ChildRestartHandler will be called as a go routine and will process
-// the start events as the process restarts following its strategy
-type ChildRestartHandler func(restart chan bool, firstStart chan bool, child *Child)
-
-func defaultRestartHandler(restart chan bool, firstStart chan bool, c *Child) {
-	var started bool = false
-	for {
-		event, ok := <-restart
-		if !ok {
-			log.Warningf("restarts chan for child %s has been closed", c.Name)
-		}
-		if !started {
-			log.Infof("child %s start event recieved", c.Name)
-			firstStart <- event
-			started = true
-		} else {
-			log.Infof("child %s restart event recieved", c.Name)
-		}
-	}
-}
-*/
-
 func NewChild(config *ChildConfig) (*Child, error) {
 	c := &Child{
 		config: config,
@@ -77,7 +49,7 @@ func NewChild(config *ChildConfig) (*Child, error) {
 	}
 
 	if c.checkIfProcessNil() {
-		return c, errors.New("Process(type: Supervisable) should be of type: *gerl/genserver.GenServerV2, *gerl/process.Process")
+		return c, errors.New("Process(type: Supervisable) should be of type: *gerl/genserver.GenServer, *gerl/process.Process")
 	}
 
 	return c, nil
@@ -125,8 +97,8 @@ func (c *Child) checkIfProcessNil() bool {
 	}
 
 	switch c.config.Process.(type) {
-	case *genserver.GenServerV2:
-		if gs, ok := c.config.Process.(*genserver.GenServerV2); ok {
+	case *genserver.GenServer:
+		if gs, ok := c.config.Process.(*genserver.GenServer); ok {
 			if gs == nil {
 				return true
 			}

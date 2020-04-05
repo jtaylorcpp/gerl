@@ -20,7 +20,7 @@ func TestChildEmptyNone(t *testing.T) {
 
 func TestChildEmptyGenServer(t *testing.T) {
 	config := &ChildConfig{
-		Process: &genserver.GenServerV2{},
+		Process: &genserver.GenServer{},
 	}
 
 	child, _ := NewChild(config)
@@ -51,14 +51,14 @@ func TestChildEmptyProcess(t *testing.T) {
 }
 
 func TestChildGenServer(t *testing.T) {
-	gsConfig := genserver.GenServerV2Config{
+	gsConfig := genserver.GenServerConfig{
 		StartState:  TestState{},
 		CallHandler: CallTest,
 		CastHandler: CastTest,
 		Scope:       core.LocalScope,
 	}
 
-	gs, _ := genserver.NewGenServerV2(&gsConfig)
+	gs, _ := genserver.NewGenServer(&gsConfig)
 
 	childConfig := &ChildConfig{
 		Name:            "test gs",
@@ -114,14 +114,14 @@ func TestChildGenServer(t *testing.T) {
 }
 
 func TestChildRestartNever(t *testing.T) {
-	gsConfig := genserver.GenServerV2Config{
+	gsConfig := genserver.GenServerConfig{
 		StartState:  TestState{},
 		CallHandler: CallTest,
 		CastHandler: CastTest,
 		Scope:       core.LocalScope,
 	}
 
-	gs, _ := genserver.NewGenServerV2(&gsConfig)
+	gs, _ := genserver.NewGenServer(&gsConfig)
 
 	childConfig := &ChildConfig{
 		Name:            "test gs",
@@ -168,14 +168,14 @@ func TestChildRestartNever(t *testing.T) {
 }
 
 func TestChildRestartOnce(t *testing.T) {
-	gsConfig := genserver.GenServerV2Config{
+	gsConfig := genserver.GenServerConfig{
 		StartState:  TestState{},
 		CallHandler: CallTest,
 		CastHandler: CastTest,
 		Scope:       core.LocalScope,
 	}
 
-	gs, _ := genserver.NewGenServerV2(&gsConfig)
+	gs, _ := genserver.NewGenServer(&gsConfig)
 
 	childConfig := &ChildConfig{
 		Name:            "test gs",
@@ -241,14 +241,14 @@ func TestChildRestartOnce(t *testing.T) {
 }
 
 func TestChildRestartAlways(t *testing.T) {
-	gsConfig := genserver.GenServerV2Config{
+	gsConfig := genserver.GenServerConfig{
 		StartState:  TestState{},
 		CallHandler: CallTest,
 		CastHandler: CastTest,
 		Scope:       core.LocalScope,
 	}
 
-	gs, _ := genserver.NewGenServerV2(&gsConfig)
+	gs, _ := genserver.NewGenServer(&gsConfig)
 
 	childConfig := &ChildConfig{
 		Name:            "test gs",

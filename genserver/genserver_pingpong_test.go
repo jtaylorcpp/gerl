@@ -69,24 +69,24 @@ func pongCall(_ core.Pid, ball Ball, fromaddr FromAddr, s PingPongState) (Ball, 
 }
 
 func TestGenServers(t *testing.T) {
-	config1 := &GenServerV2Config{
+	config1 := &GenServerConfig{
 		StartState:  PingPongState{},
 		Scope:       core.LocalScope,
 		CallHandler: pingCall,
 		CastHandler: defaultCast,
 	}
-	gs1, err := NewGenServerV2(config1)
+	gs1, err := NewGenServer(config1)
 	if err != nil {
 		t.Fatal(err.Error())
 	}
 
-	config2 := &GenServerV2Config{
+	config2 := &GenServerConfig{
 		StartState:  PingPongState{},
 		Scope:       core.LocalScope,
 		CallHandler: pongCall,
 		CastHandler: defaultCast,
 	}
-	gs2, err := NewGenServerV2(config2)
+	gs2, err := NewGenServer(config2)
 	if err != nil {
 		t.Fatal(err.Error())
 	}

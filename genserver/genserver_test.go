@@ -165,14 +165,14 @@ func TestGenServerCastHandlerParsing(t *testing.T) {
 }
 
 func TestGenServer(t *testing.T) {
-	config := &GenServerV2Config{
+	config := &GenServerConfig{
 		StartState:  TestState{"test state"},
 		Scope:       core.LocalScope,
 		CallHandler: CallTest,
 		CastHandler: CastTest,
 	}
 
-	genserver, err := NewGenServerV2(config)
+	genserver, err := NewGenServer(config)
 	if err != nil {
 		t.Fatal(err.Error())
 	}
@@ -201,14 +201,14 @@ func TestGenServer(t *testing.T) {
 
 func BenchmarkGenServerStart(b *testing.B) {
 	for i := 0; i < b.N; i++ {
-		config := &GenServerV2Config{
+		config := &GenServerConfig{
 			StartState:  TestState{"test state"},
 			Scope:       core.LocalScope,
 			CallHandler: CallTest,
 			CastHandler: CastTest,
 		}
 
-		genserver, err := NewGenServerV2(config)
+		genserver, err := NewGenServer(config)
 		if err != nil {
 			b.Fatal(err.Error())
 		}

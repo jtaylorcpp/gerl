@@ -31,6 +31,7 @@ type GenericServer interface {
 	// Starts the GenericServer and returns the ProcessID associated with it
 	Start() error
 	GetPid() *core.Pid
+	IsReady() bool
 	// Processes a synchronous message passed to the GenericServer
 	CallHandler(core.Message, FromAddr, State) (core.Message, State)
 	// Processes an asynchronous message passed to the GenericServer
@@ -216,163 +217,7 @@ func newCustomCastHandler(handlerFunc interface{}) (GenServerCastHandler, error)
 	return returnFunc, nil
 }
 
-/*
-// GenServer is an implementation of the GenericServer.
-// It serves both as a reference implemntation and
-// easy way to build and use the GenericServer pattern.
-type GenServer struct {
-	// Pid (type) is a struct defined in pid.go which
-	// fullfills the ProcessID interface and allows outside
-	// code to interact with the GenServer.
-	Pid *core.Pid
-	// State uses the empty interface GenericServerState to handle arbitrary
-	// state information.
-	State State
-	Scope core.Scope
-	// CustomCall is a func ran inside of this implementations CallHandler.
-	// This allows a user defined call routine to be ran within the
-	// GenericServer interface.
-	CustomCall GenServerCallHandler
-	// CustomCast is a func ran inside of this implementations CastHandler.
-	// This allows a user defined cast routine to be ran within the
-	// GenericServer interface.
-	CustomCast GenServerCastHandler
-	Errors     chan error
-	// BufferSize (uint64) sets the initial Pid GerlMessage buffer size.
-	TerminateIn  chan bool
-	TerminateOut chan bool
-}
-
-// Initializes the GenServer with the intial state
-// takes in both the Call handler and Cast handler to be used in the main loop
-// call must be a func with a signature of: func(core.Pid, StructIn, FromAddr, StructState) (StructOut, StructState)
-// cast must be a func with a signature of: func(core.Pid, StructIn, FromAddr, StructState) StructState
-func NewGenServer(state State, scope core.Scope, call, cast interface{}) (*GenServer, error) {
-	log.Println("Initializing GenServer with state: ", state)
-	log.Println("Initializing Call Handler")
-	callHandler, err := newCustomCallHandler(call)
-	if err != nil {
-		return nil, err
-	}
-	log.Println("Initializing Cast Hander")
-	castHandler, err := newCustomCastHandler(cast)
-	if err != nil {
-		return nil, err
-	}
-	return &GenServer{
-		Pid:          nil,
-		State:        state,
-		Scope:        scope,
-		CustomCall:   callHandler,
-		CustomCast:   castHandler,
-		Errors:       make(chan error, 1),
-		TerminateIn:  make(chan bool, 1),
-		TerminateOut: make(chan bool, 1),
-	}, nil
-}
-
-// Starts the GenServer main loop in which messages are read from the
-// "inbox" and then passed to either the CallHandler or the CastHandler.
-// This main loop is ran in a go-routine in which when the "inbox" is closed
-// the loop sends a termination signal and closes.
-// All messages output by the CallHandler are sent to the "outbox" and processed
-// by the pid. This "outbox" is also closed when the GenServer main loop is broken.
-// The channel used as input is to send a signal for when the servers is ready to send recieve as
-//    this is not immediate once the Start func is called
-func (gs *GenServer) Start(started chan<- bool) error {
-	//init empty chans in the case this was a restart
-	gs.TerminateIn = make(chan bool, 1)
-	gs.TerminateOut = make(chan bool, 1)
-	gs.Errors = make(chan error, 1)
-	// generate a new pid
-	var err error
-	gs.Pid, err = core.NewPid("", "", gs.Scope)
-	if err != nil {
-		started <- false
-		return err
-	}
-
-	log.Println("GenServer available at pid: ", gs.Pid.GetAddr())
-	log.Printf("genserver: %#v\n", gs)
-
-	started <- true
-	var loopState State
-	loopState = gs.State
-	for {
-		select {
-		case err := <-gs.Pid.Errors:
-			if err != nil {
-				log.Println("genserver pid error: ", err)
-				return errors.New("pid error, close genserver")
-			}
-		case <-gs.TerminateIn:
-			log.Println("genserver terminated")
-			log.Println("genserver end state: ", loopState)
-			goto terminate
-		case msg := <-gs.Pid.Inbox:
-			switch msg.GetType() {
-			case core.GerlMsg_CALL:
-				log.Println("genserver recieved call")
-				returnMsg, loopState := gs.CallHandler(*msg.GetMsg(), msg.GetFromaddr(), loopState)
-				gs.Pid.Outbox <- core.GerlMsg{
-					Type:     core.GerlMsg_CALL,
-					Fromaddr: gs.Pid.GetAddr(),
-					Msg:      &returnMsg,
-				}
-				log.Println("state after call: ", loopState)
-			case core.GerlMsg_CAST:
-				log.Println("genserver recieved cast")
-				loopState = gs.CastHandler(*msg.GetMsg(), msg.GetFromaddr(), loopState)
-				log.Println("state after cast: ", loopState)
-			default:
-				log.Println("genserver recieved unknown type: ", msg.GetType())
-			}
-		}
-	}
-terminate:
-	gs.Pid.Terminate()
-	log.Printf("Genserver with pid<%v> terminated\n", gs.Pid)
-	gs.Pid = nil
-	log.Println("genserver end state: ", loopState)
-	gs.TerminateOut <- true
-	close(gs.TerminateOut)
-	return nil
-}
-
-// CallHandler from GenericServer and passes through all variables to
-// the GenServerCustomCall.
-func (gs *GenServer) CallHandler(msg core.Message, fa FromAddr, s State) (core.Message, State) {
-	log.Printf("GenServer with pid<%v> calling CustomCaller\n", gs.Pid)
-	newMsg, newState := gs.CustomCall(*gs.Pid, msg.GetRawMsg(), fa, s)
-	log.Printf("GenServer with pid<%v> has new state<%v>\n", gs.Pid, newState)
-	log.Printf("GenServer with pid<%v> call returning msg<%v>\n", gs.Pid, newMsg)
-	return core.Message{RawMsg: newMsg}, newState
-}
-
-// CastHandler from GenericServer and passes through all variable to
-// the GenericServerCustomCast
-func (gs *GenServer) CastHandler(msg core.Message, fa FromAddr, s State) State {
-	log.Printf("GenServer with pid<%v> calling CustomCaster\n", gs.Pid)
-	newState := gs.CustomCast(*gs.Pid, msg.GetRawMsg(), fa, s)
-	log.Printf("GenServer with pid<%v> has new state<%v>\n", gs.Pid, newState)
-	return newState
-}
-
-func (gs *GenServer) GetPid() *core.Pid {
-	return gs.Pid
-}
-
-// Terminate Calls the Pid.Terminate function to close out both the
-// Pid and GenServer
-func (gs *GenServer) Terminate() {
-	log.Printf("Genserver with pid<%v> terminating\n", gs.Pid)
-	gs.TerminateIn <- true
-	close(gs.TerminateIn)
-	log.Println("Waiting for generserver to terminate")
-	<-gs.TerminateOut
-}
-*/
-type GenServerV2Config struct {
+type GenServerConfig struct {
 	StartState  State
 	CallHandler interface{}
 	CastHandler interface{}
@@ -381,8 +226,8 @@ type GenServerV2Config struct {
 	Address     string
 }
 
-type GenServerV2 struct {
-	config *GenServerV2Config
+type GenServer struct {
+	config *GenServerConfig
 	// Pid (type) is a struct defined in pid.go which
 	// fullfills the ProcessID interface and allows outside
 	// code to interact with the GenServer.
@@ -402,7 +247,7 @@ type GenServerV2 struct {
 	mutex      *sync.Mutex
 }
 
-func NewGenServerV2(config *GenServerV2Config) (*GenServerV2, error) {
+func NewGenServer(config *GenServerConfig) (*GenServer, error) {
 	log.Println("Initializing Call Hander")
 	callHandler, err := newCustomCallHandler(config.CallHandler)
 	if err != nil {
@@ -413,7 +258,7 @@ func NewGenServerV2(config *GenServerV2Config) (*GenServerV2, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &GenServerV2{
+	return &GenServer{
 		config:     config,
 		customCall: callHandler,
 		customCast: castHandler,
@@ -421,7 +266,7 @@ func NewGenServerV2(config *GenServerV2Config) (*GenServerV2, error) {
 	}, nil
 }
 
-func (gs *GenServerV2) Start() error {
+func (gs *GenServer) Start() error {
 	gs.mutex.Lock()
 	pid, err := core.NewPid(gs.config.Address, gs.config.Port, gs.config.Scope)
 	if err != nil {
@@ -478,11 +323,11 @@ pid_terminated:
 	return exitError
 }
 
-func (gs *GenServerV2) GetPid() *core.Pid {
+func (gs *GenServer) GetPid() *core.Pid {
 	return gs.pid
 }
 
-func (gs *GenServerV2) IsReady() bool {
+func (gs *GenServer) IsReady() bool {
 	if gs.pid == nil {
 		return false
 	}
@@ -492,7 +337,7 @@ func (gs *GenServerV2) IsReady() bool {
 
 // CallHandler from GenericServer and passes through all variables to
 // the GenServerCustomCall.
-func (gs *GenServerV2) CallHandler(msg core.Message, fa FromAddr, s State) (core.Message, State) {
+func (gs *GenServer) CallHandler(msg core.Message, fa FromAddr, s State) (core.Message, State) {
 	log.Printf("GenServer with pid<%#v> calling CustomCaller\n", gs.pid)
 	newMsg, newState := gs.customCall(*gs.pid, msg.GetRawMsg(), fa, s)
 	log.Printf("GenServer with pid<%#v> has new state<%v>\n", gs.pid, newState)
@@ -502,14 +347,14 @@ func (gs *GenServerV2) CallHandler(msg core.Message, fa FromAddr, s State) (core
 
 // CastHandler from GenericServer and passes through all variable to
 // the GenericServerCustomCast
-func (gs *GenServerV2) CastHandler(msg core.Message, fa FromAddr, s State) State {
+func (gs *GenServer) CastHandler(msg core.Message, fa FromAddr, s State) State {
 	log.Printf("GenServer with pid<%v> calling CustomCaster\n", gs.pid)
 	newState := gs.customCast(*gs.pid, msg.GetRawMsg(), fa, s)
 	log.Printf("GenServer with pid<%v> has new state<%v>\n", gs.pid, newState)
 	return newState
 }
 
-func (gs *GenServerV2) Terminate() {
+func (gs *GenServer) Terminate() {
 	gs.mutex.Lock()
 	defer gs.mutex.Unlock()
 	if gs.pid == nil {

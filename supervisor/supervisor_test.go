@@ -18,17 +18,17 @@ type TestStratState struct {
 }
 
 type GS struct {
-	gs *genserver.GenServerV2
+	gs *genserver.GenServer
 }
 
 func NewGS() (*GS, error) {
-	config := &genserver.GenServerV2Config{
+	config := &genserver.GenServerConfig{
 		StartState:  TestStratState{Iter: 0},
 		CallHandler: CallTestStrat,
 		CastHandler: CastTestStrat,
 		Scope:       core.LocalScope,
 	}
-	gs, err := genserver.NewGenServerV2(config)
+	gs, err := genserver.NewGenServer(config)
 	if err != nil {
 		return nil, err
 	}
