@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
+	"sync"
 	"time"
 
 	log "github.com/sirupsen/logrus"
@@ -398,6 +399,7 @@ type GenServerV2 struct {
 	// This allows a user defined cast routine to be ran within the
 	// GenericServer interface.
 	customCast GenServerCastHandler
+	mutex      *sync.Mutex
 }
 
 func NewGenServerV2(config *GenServerV2Config) (*GenServerV2, error) {
@@ -415,10 +417,12 @@ func NewGenServerV2(config *GenServerV2Config) (*GenServerV2, error) {
 		config:     config,
 		customCall: callHandler,
 		customCast: castHandler,
+		mutex:      &sync.Mutex{},
 	}, nil
 }
 
 func (gs *GenServerV2) Start() error {
+	gs.mutex.Lock()
 	pid, err := core.NewPid(gs.config.Address, gs.config.Port, gs.config.Scope)
 	if err != nil {
 		return err
@@ -429,13 +433,16 @@ func (gs *GenServerV2) Start() error {
 	log.Println("GenServer available at pid: ", gs.pid.GetAddr())
 	log.Printf("genserver: %#v\n", gs)
 
+	var exitError error = nil
+	gs.mutex.Unlock()
 	for {
 		select {
 		case msg, ok := <-gs.pid.Inbox:
 			log.Printf("recieved message <%#v> from inbox<status:%#v>\n", msg, ok)
 			if !ok {
 				log.Println("pid inbox has been closed without genserver termination")
-				return errors.New("genserver inbox has been closed")
+				exitError = errors.New("genserver inbox has been closed")
+				goto pid_terminated
 			} else {
 				switch msg.Type {
 				case core.GerlMsg_CALL:
@@ -464,10 +471,11 @@ func (gs *GenServerV2) Start() error {
 terminate:
 	log.Printf("genserver terminating")
 	gs.pid.Terminate()
+pid_terminated:
 	log.Printf("Genserver with pid<%#v> terminated\n", gs.pid)
 	gs.pid = nil
 	log.Println("genserver end state: ", gs.state)
-	return nil
+	return exitError
 }
 
 func (gs *GenServerV2) GetPid() *core.Pid {
@@ -502,6 +510,12 @@ func (gs *GenServerV2) CastHandler(msg core.Message, fa FromAddr, s State) State
 }
 
 func (gs *GenServerV2) Terminate() {
+	gs.mutex.Lock()
+	defer gs.mutex.Unlock()
+	if gs.pid == nil {
+		return
+	}
+
 	core.PidTerminate(gs.pid.GetAddr(), gs.pid.GetAddr(), core.Message{})
 	for gs.pid != nil {
 		time.Sleep(10 * time.Nanosecond)

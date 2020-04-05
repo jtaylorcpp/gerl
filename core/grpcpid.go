@@ -35,7 +35,7 @@ const (
 //  - IPAddress to bind all pids to
 func init() {
 	MessageTimeout = 500 * time.Millisecond
-	HealthTimeout = 50 * time.Millisecond
+	HealthTimeout = 10 * time.Millisecond
 
 	if DefaultLogger == nil {
 		logrus.SetReportCaller(true)
@@ -208,7 +208,7 @@ func (p Pid) GetAddr() string {
 // Terminate terminates the Pid and closes all of the Pid side components
 func (p *Pid) Terminate() error {
 	if p == nil {
-		p.Logger.Println("pid has already been terminated")
+		DefaultLogger.Println("pid has already been terminated")
 		return nil
 	}
 	p.Logger.Printf("Pid <%v> terminating\n", p)
