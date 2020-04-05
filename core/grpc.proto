@@ -16,6 +16,8 @@ message GerlMsg {
 		CALL = 0;
 		CAST = 1;
 		PROC = 2;
+		ERR  = 3;
+		TERM = 4;
 	}
 	
 	Type type = 1;

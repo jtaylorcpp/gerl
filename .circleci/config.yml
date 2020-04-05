@@ -2,13 +2,8 @@ version: 2
 jobs:
   build:
     docker:
-    - image: circleci/golang:1.11
-    working_directory: /go/src/github.com/jtaylorcpp/gerl
+    - image: circleci/golang:1.13
     steps:
     - checkout
-    - run: go get -v -t -d ./...
-    - run: go test -v ./genserver ./process ./core -coverprofile=circleci.cover -bench=.
-    - run: go tool cover -html=circleci.cover -o circleci.html
-    - store_artifacts:
-        path: ./circleci.html
-
+    - run: go get ./supervisor ./genserver ./process ./core
+    - run: go test ./supervisor ./genserver ./process ./core -coverprofile=circleci.cover

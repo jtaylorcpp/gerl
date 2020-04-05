@@ -1,12 +1,15 @@
 package genserver
 
 import (
-	"log"
 	"testing"
+	"time"
+
 	//"time"
 	"encoding/json"
 
 	"gerl/core"
+
+	log "github.com/sirupsen/logrus"
 )
 
 func TestGenServerCallHandlerParsing(t *testing.T) {
@@ -46,44 +49,44 @@ func TestGenServerCallHandlerParsing(t *testing.T) {
 		t.Fatal("returned message is not equal to sent message")
 	}
 
-	_, err = newCustomCallHandler(func(){})
+	_, err = newCustomCallHandler(func() {})
 	if err == nil {
 		t.Fatal("this func is not right and should have errored out")
 	}
 
 	t.Log(err.Error())
 
-	_, err = newCustomCallHandler(func(a,b,c,d int)(int,int){return 0,0})
+	_, err = newCustomCallHandler(func(a, b, c, d int) (int, int) { return 0, 0 })
 	if err == nil {
 		t.Fatal("this func is not right and should have errored out")
 	}
 	t.Log(err.Error())
 
-	_, err = newCustomCallHandler(func(_ core.Pid, b,c,d int)(int,int){return 0,0})
+	_, err = newCustomCallHandler(func(_ core.Pid, b, c, d int) (int, int) { return 0, 0 })
 	if err == nil {
 		t.Fatal("this func is not right and should have errored out")
 	}
 	t.Log(err.Error())
 
-	_, err = newCustomCallHandler(func(_ core.Pid, _ struct{},c,d int)(int,int){return 0,0})
+	_, err = newCustomCallHandler(func(_ core.Pid, _ struct{}, c, d int) (int, int) { return 0, 0 })
 	if err == nil {
 		t.Fatal("this func is not right and should have errored out")
 	}
 	t.Log(err.Error())
 
-	_, err = newCustomCallHandler(func(_ core.Pid, _ struct{},_ string,d int)(int,int){return 0,0})
+	_, err = newCustomCallHandler(func(_ core.Pid, _ struct{}, _ string, d int) (int, int) { return 0, 0 })
 	if err == nil {
 		t.Fatal("this func is not right and should have errored out")
 	}
 	t.Log(err.Error())
 
-	_, err = newCustomCallHandler(func(_ core.Pid, _ struct{},_ string, _ struct{})(int,int){return 0,0})
+	_, err = newCustomCallHandler(func(_ core.Pid, _ struct{}, _ string, _ struct{}) (int, int) { return 0, 0 })
 	if err == nil {
 		t.Fatal("this func is not right and should have errored out")
 	}
 	t.Log(err.Error())
 
-	_, err = newCustomCallHandler(func(_ core.Pid, _ struct{},_ string, _ struct{})(struct{},int){return struct{}{},0})
+	_, err = newCustomCallHandler(func(_ core.Pid, _ struct{}, _ string, _ struct{}) (struct{}, int) { return struct{}{}, 0 })
 	if err == nil {
 		t.Fatal("this func is not right and should have errored out")
 	}
@@ -117,44 +120,44 @@ func TestGenServerCastHandlerParsing(t *testing.T) {
 		t.Fatal("state returned is not equal")
 	}
 
-	_, err = newCustomCallHandler(func(){})
+	_, err = newCustomCallHandler(func() {})
 	if err == nil {
 		t.Fatal("this func is not right and should have errored out")
 	}
 
 	t.Log(err.Error())
 
-	_, err = newCustomCallHandler(func(a,b,c,d int)(int,int){return 0,0})
+	_, err = newCustomCallHandler(func(a, b, c, d int) (int, int) { return 0, 0 })
 	if err == nil {
 		t.Fatal("this func is not right and should have errored out")
 	}
 	t.Log(err.Error())
 
-	_, err = newCustomCallHandler(func(_ core.Pid, b,c,d int)(int,int){return 0,0})
+	_, err = newCustomCallHandler(func(_ core.Pid, b, c, d int) (int, int) { return 0, 0 })
 	if err == nil {
 		t.Fatal("this func is not right and should have errored out")
 	}
 	t.Log(err.Error())
 
-	_, err = newCustomCallHandler(func(_ core.Pid, _ struct{},c,d int)(int,int){return 0,0})
+	_, err = newCustomCallHandler(func(_ core.Pid, _ struct{}, c, d int) (int, int) { return 0, 0 })
 	if err == nil {
 		t.Fatal("this func is not right and should have errored out")
 	}
 	t.Log(err.Error())
 
-	_, err = newCustomCallHandler(func(_ core.Pid, _ struct{},_ string,d int)(int,int){return 0,0})
+	_, err = newCustomCallHandler(func(_ core.Pid, _ struct{}, _ string, d int) (int, int) { return 0, 0 })
 	if err == nil {
 		t.Fatal("this func is not right and should have errored out")
 	}
 	t.Log(err.Error())
 
-	_, err = newCustomCallHandler(func(_ core.Pid, _ struct{},_ string, _ struct{})(int,int){return 0,0})
+	_, err = newCustomCallHandler(func(_ core.Pid, _ struct{}, _ string, _ struct{}) (int, int) { return 0, 0 })
 	if err == nil {
 		t.Fatal("this func is not right and should have errored out")
 	}
 	t.Log(err.Error())
 
-	_, err = newCustomCallHandler(func(_ core.Pid, _ struct{},_ string, _ struct{})(struct{},int){return struct{}{},0})
+	_, err = newCustomCallHandler(func(_ core.Pid, _ struct{}, _ string, _ struct{}) (struct{}, int) { return struct{}{}, 0 })
 	if err == nil {
 		t.Fatal("this func is not right and should have errored out")
 	}
@@ -162,51 +165,64 @@ func TestGenServerCastHandlerParsing(t *testing.T) {
 }
 
 func TestGenServer(t *testing.T) {
-	genserver,err := NewGenServer(TestState{"test state"}, core.LocalScope, CallTest, CastTest)
+	config := &GenServerConfig{
+		StartState:  TestState{"test state"},
+		Scope:       core.LocalScope,
+		CallHandler: CallTest,
+		CastHandler: CastTest,
+	}
+
+	genserver, err := NewGenServer(config)
 	if err != nil {
 		t.Fatal(err.Error())
 	}
 
-	genserverStarted := make(chan bool, 1)
-	genserverStopped := make(chan bool, 1)
 	go func() {
-		if err := genserver.Start(genserverStarted); err != nil {
-			genserverStopped <- false
-			t.Fatal(err.Error())
-		}
-
-		genserverStopped <- true
+		log.Errorln("error from running genserver: ", genserver.Start())
 	}()
 
-	<- genserverStarted
-
-	//time.Sleep(25 * time.Microsecond)
-	t.Log("waiting for genserver to start")
+	for !genserver.IsReady() {
+		time.Sleep(1 * time.Second)
+	}
 
 	msg1 := TestMessage{
 		Body: "test1",
 	}
 
-	returnMsg1, err := Call(genserver.Pid.Addr, "localhost", msg1)
+	returnMsg1, err := Call(genserver.pid.GetAddr(), "localhost", msg1)
 	if err != nil {
 		t.Fatal(err.Error())
 	}
 	t.Log(returnMsg1)
 
-	/*Cast(PidAddr(genserver.Pid.GetAddr()), PidAddr("localhost"), msg1)
-
-	time.Sleep(25 * time.Millisecond)
-
-	t.Log("final state: ", genserver.State)*/
-
-	//time.Sleep(500 * time.Microsecond)
-	t.Log("waiting for genserver to clear inbox before terminate")
-
 	genserver.Terminate()
-
-	<- genserverStopped
+	log.Println("genserver terminated")
 }
 
+func BenchmarkGenServerStart(b *testing.B) {
+	for i := 0; i < b.N; i++ {
+		config := &GenServerConfig{
+			StartState:  TestState{"test state"},
+			Scope:       core.LocalScope,
+			CallHandler: CallTest,
+			CastHandler: CastTest,
+		}
+
+		genserver, err := NewGenServer(config)
+		if err != nil {
+			b.Fatal(err.Error())
+		}
+
+		go func() {
+			log.Errorln("error from genserver: ", genserver.Start())
+		}()
+		for !genserver.IsReady() {
+			// do nothing
+		}
+
+		genserver.Terminate()
+	}
+}
 
 type TestMessage struct {
 	Body string
