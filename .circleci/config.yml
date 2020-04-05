@@ -3,7 +3,6 @@ jobs:
   build:
     docker:
     - image: circleci/golang:1.13
-    working_directory: /go/src/github.com/jtaylorcpp/gerl
     steps:
     - checkout
     - run: go get ./supervisor ./genserver ./process ./core
