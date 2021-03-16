@@ -3,46 +3,52 @@ package registrar
 import (
 	"errors"
 	"gerl/core"
+	"time"
 
 	log "github.com/sirupsen/logrus"
 )
 
 type ProcessName = string
 type ProcessAddress = string
+type ProcessRecord struct {
+	address     ProcessAddress
+	lastUpdated time.Time
+}
 
 type Registrar struct {
-	registry map[ProcessName]map[core.Scope][]ProcessAddress
+	registry map[ProcessName]map[core.Scope][]ProcessRecord
 }
 
 func NewRegistrar() *Registrar {
 	return &Registrar{
-		registry: map[ProcessName]map[core.Scope][]ProcessAddress{},
+		registry: map[ProcessName]map[core.Scope][]ProcessRecord{},
 	}
 }
 
 type RegistrarRecord struct {
-	Name    string
+	Name    ProcessName
 	Scope   core.Scope
 	Address ProcessAddress
 }
 
 func (r *Registrar) AddServiceRecord(addRecord RegistrarRecord) error {
 	name, scope, addr := addRecord.Name, addRecord.Scope, addRecord.Address
+	timeAdded := time.Now()
 	if _, nameok := r.registry[name]; nameok {
 		if knownAddrs, scopeok := r.registry[name][scope]; scopeok {
 			addrIsKnown := false
-			for _, knownAddr := range knownAddrs {
-				if knownAddr == addr {
+			for _, knownProcess := range knownAddrs {
+				if knownProcess.address == addr {
 					addrIsKnown = true
 					break
 				}
 			}
 			if !addrIsKnown {
-				r.registry[name][scope] = append(r.registry[name][scope], addr)
+				r.registry[name][scope] = append(r.registry[name][scope], ProcessRecord{addr, timeAdded})
 			}
 		} else {
 			if scope == core.LocalScope || scope == core.GlobalScope {
-				r.registry[name][scope] = []ProcessAddress{addr}
+				r.registry[name][scope] = []ProcessRecord{{addr, timeAdded}}
 			} else {
 				return errors.New("scope provided for registrar is not core.LocalScope or core.GlobalScope")
 			}
@@ -50,8 +56,8 @@ func (r *Registrar) AddServiceRecord(addRecord RegistrarRecord) error {
 	} else {
 		if scope == core.LocalScope || scope == core.GlobalScope {
 			if addr != "" {
-				r.registry[name] = map[core.Scope][]ProcessAddress{
-					scope: []ProcessAddress{addr},
+				r.registry[name] = map[core.Scope][]ProcessRecord{
+					scope: []ProcessRecord{{addr, timeAdded}},
 				}
 			} else {
 				return errors.New("no address prvided to registrar")
@@ -80,10 +86,10 @@ func (r *Registrar) RemoveServiceRecord(removeRecord RegistrarRecord) error {
 		switch scope {
 		case core.LocalScope, core.GlobalScope:
 			if addr != "" {
-				newAddrs := []ProcessAddress{}
-				for _, currentAddr := range r.registry[name][scope] {
-					if currentAddr != addr {
-						newAddrs = append(newAddrs, currentAddr)
+				newAddrs := []ProcessRecord{}
+				for _, currentProcRecord := range r.registry[name][scope] {
+					if currentProcRecord.address != addr {
+						newAddrs = append(newAddrs, currentProcRecord)
 					}
 				}
 				r.registry[name][scope] = newAddrs
@@ -109,11 +115,15 @@ func (r *Registrar) GetServiceAddresses(record RegistrarRecord) ([]ProcessAddres
 		case core.LocalScope, core.GlobalScope:
 			switch addr {
 			case "":
-				return r.registry[name][scope], nil
+				returnAddrs := []ProcessAddress{}
+				for _, procRecord := range r.registry[name][scope] {
+					returnAddrs = append(returnAddrs, procRecord.address)
+				}
+				return returnAddrs, nil
 			default:
 				returnAddresses := []ProcessAddress{}
-				for _, knownAddr := range r.registry[name][scope] {
-					if knownAddr == addr {
+				for _, knownProc := range r.registry[name][scope] {
+					if knownProc.address == addr {
 						returnAddresses = append(returnAddresses, addr)
 					}
 				}
@@ -122,8 +132,10 @@ func (r *Registrar) GetServiceAddresses(record RegistrarRecord) ([]ProcessAddres
 			}
 		default:
 			returnAddresses := []ProcessAddress{}
-			for _, addrs := range r.registry[name] {
-				returnAddresses = append(returnAddresses, addrs...)
+			for _, procRecords := range r.registry[name] {
+				for _, procRecord := range procRecords {
+					returnAddresses = append(returnAddresses, procRecord.address)
+				}
 			}
 
 			return returnAddresses, nil

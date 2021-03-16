@@ -178,7 +178,9 @@ func TestGenServer(t *testing.T) {
 	}
 
 	go func() {
-		log.Errorln("error from running genserver: ", genserver.Start())
+		if err := genserver.Start(); err != nil {
+			log.Errorln("error from running genserver: ", err)
+		}
 	}()
 
 	for !genserver.IsReady() {

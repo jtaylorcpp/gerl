@@ -92,11 +92,15 @@ func TestGenServers(t *testing.T) {
 	}
 
 	go func() {
-		log.Errorln("error exiting ping server: ", gs1.Start())
+		if err := gs1.Start(); err != nil {
+			log.Errorln("error exiting ping server: ", err)
+		}
 	}()
 
 	go func() {
-		log.Errorln("error exiting ping server: ", gs2.Start())
+		if err := gs2.Start(); err != nil {
+			log.Errorln("error exiting ping server: ", err)
+		}
 	}()
 
 	for !gs1.IsReady() {

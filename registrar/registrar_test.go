@@ -44,7 +44,7 @@ func TestRegistrarAddRecords(t *testing.T) {
 		t.Fatal("given record should be able to be stored")
 	}
 
-	if r.registry["test"][core.LocalScope][0] != "1" {
+	if r.registry["test"][core.LocalScope][0].address != "1" {
 		t.Fatal("address not properly stored")
 	}
 
@@ -188,7 +188,7 @@ func TestRegistrarRemoveRecords(t *testing.T) {
 		t.Fatal("should be able to remove record that exists")
 	}
 
-	if r.registry["testB"][core.GlobalScope][0] != "d" {
+	if r.registry["testB"][core.GlobalScope][0].address != "d" {
 		t.Logf("%#v\n", *r)
 		t.Fatal("remaining record is not the one expected")
 	}
@@ -232,6 +232,8 @@ func TestRegistrarGetServiceAddresses(t *testing.T) {
 	if err != nil {
 		t.Fatal(err.Error())
 	}
+
+	t.Logf("all records for test a: %#v", allRecords)
 
 	if allRecords[0] != "1" &&
 		allRecords[1] != "2" &&
